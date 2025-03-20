@@ -147,7 +147,7 @@ def main():
             # Directory mode
             if len(sys.argv) < 3:
                 print("Error: Output directory required for directory processing")
-                print("Usage: python script.py input_dir output_dir")
+                print("Usage: python md_to_html.py input_dir output_dir")
                 sys.exit(1)
             process_directory(sys.argv[1], sys.argv[2])
 
