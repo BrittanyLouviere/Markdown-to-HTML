@@ -91,8 +91,15 @@ def convert_md_to_html(md_content):
     return html_content
 
 
-def process_file(input_file, output_file, copy_non_md=True):
-    """Process a single file, converting if it's markdown or copying if specified."""
+def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
+    """Process a single file, converting if it's markdown or copying if specified.
+
+    Args:
+        input_file: Path to the input file
+        output_file: Path to the output file
+        copy_non_md: Whether to copy non-markdown files
+        mode: How to handle existing files ('skip', 'overwrite', or 'interactive')
+    """
     input_path = Path(input_file)
     output_path = Path(output_file)
 
@@ -101,21 +108,46 @@ def process_file(input_file, output_file, copy_non_md=True):
 
     # Check if it's a markdown file
     if input_path.suffix.lower() in ['.md', '.markdown']:
+        output_html_path = output_path.with_suffix('.html')
+
+        # Check if output file already exists
+        if output_html_path.exists():
+            if mode == 'skip':
+                print(f"Skipped existing file: {output_html_path}")
+                return True
+            elif mode == 'interactive':
+                response = input(f"File {output_html_path} already exists. Overwrite? (y/N): ")
+                if response.lower() != 'y':
+                    print(f"Skipped: {input_path}")
+                    return True
+            # For 'overwrite' mode, we proceed without asking
+
         try:
             with open(input_path, 'r', encoding='utf-8') as f:
                 md_content = f.read()
 
             html_content = convert_md_to_html(md_content)
 
-            with open(output_path.with_suffix('.html'), 'w', encoding='utf-8') as f:
+            with open(output_html_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
 
-            print(f"Converted: {input_path} -> {output_path.with_suffix('.html')}")
+            print(f"Converted: {input_path} -> {output_html_path}")
             return True
         except Exception as e:
             print(f"Error processing {input_path}: {e}")
             return False
     elif copy_non_md:
+        # For non-markdown files, check if the output file already exists
+        if output_path.exists():
+            if mode == 'skip':
+                print(f"Skipped existing file: {output_path}")
+                return True
+            elif mode == 'interactive':
+                response = input(f"File {output_path} already exists. Overwrite? (y/N): ")
+                if response.lower() != 'y':
+                    print(f"Skipped: {input_path}")
+                    return True
+
         try:
             shutil.copy2(input_path, output_path)
             print(f"Copied: {input_path} -> {output_path}")
@@ -128,8 +160,15 @@ def process_file(input_file, output_file, copy_non_md=True):
         return True
 
 
-def process_directory(input_dir, output_dir, copy_non_md=True):
-    """Process all files in a directory recursively."""
+def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive'):
+    """Process all files in a directory recursively.
+
+    Args:
+        input_dir: Path to the input directory
+        output_dir: Path to the output directory
+        copy_non_md: Whether to copy non-markdown files
+        mode: How to handle existing files ('skip', 'overwrite', or 'interactive')
+    """
     input_path = Path(input_dir)
     output_path = Path(output_dir)
 
@@ -142,7 +181,7 @@ def process_directory(input_dir, output_dir, copy_non_md=True):
             # Construct the output file path
             out_file = output_path / rel_path
 
-            if not process_file(item, out_file, copy_non_md):
+            if not process_file(item, out_file, copy_non_md, mode):
                 success = False
 
     return success
@@ -155,7 +194,25 @@ def main():
     parser.add_argument('--no-copy', action='store_true', 
                         help='Do not copy non-markdown files to the output directory')
 
+    # Add a mutually exclusive group for file handling modes
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument('-s', '--skip', action='store_true',
+                        help='Skip files that already exist')
+    mode_group.add_argument('-w', '--overwrite', action='store_true',
+                        help='Overwrite all existing files without asking')
+    mode_group.add_argument('-i', '--interactive', action='store_true',
+                        help='Ask before overwriting existing files (default)')
+
     args = parser.parse_args()
+
+    # Determine the file handling mode
+    if args.skip:
+        mode = 'skip'
+    elif args.overwrite:
+        mode = 'overwrite'
+    else:
+        # Default to interactive mode
+        mode = 'interactive'
 
     # Process each input
     for input_path in args.input:
@@ -180,7 +237,7 @@ def main():
                 # Otherwise, output to the same directory
                 output_file = path
 
-            process_file(path, output_file, not args.no_copy)
+            process_file(path, output_file, not args.no_copy, mode)
 
         elif path.is_dir():
             # For a directory
@@ -191,7 +248,7 @@ def main():
                 # Otherwise, use the input directory
                 output_dir = path
 
-            process_directory(path, output_dir, not args.no_copy)
+            process_directory(path, output_dir, not args.no_copy, mode)
 
 
 if __name__ == "__main__":

@@ -37,6 +37,9 @@ python md2html.py [options] input [input ...]
 
 - `-o, --output`: Specify the output directory (default: same as input)
 - `--no-copy`: Do not copy non-markdown files to the output directory
+- `-s, --skip`: Skip files that already exist
+- `-w, --overwrite`: Overwrite all existing files without asking
+- `-i, --interactive`: Ask before overwriting existing files (default) - default answer is 'no'
 
 ### Examples
 
@@ -63,6 +66,27 @@ python md2html.py [options] input [input ...]
 5. Convert files without copying non-markdown files:
    ```
    python md2html.py input_directory/ -o output_directory/ --no-copy
+   ```
+
+6. Skip files that already exist:
+   ```
+   python md2html.py input_directory/ --skip
+   # Or using the short form:
+   python md2html.py input_directory/ -s
+   ```
+
+7. Overwrite all existing files without asking:
+   ```
+   python md2html.py input_directory/ --overwrite
+   # Or using the short form:
+   python md2html.py input_directory/ -w
+   ```
+
+8. Interactive mode (default) - ask before overwriting each file (default answer is 'no'):
+   ```
+   python md2html.py input_directory/ --interactive
+   # Or using the short form:
+   python md2html.py input_directory/ -i
    ```
 
 ## YAML Frontmatter
