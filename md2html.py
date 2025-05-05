@@ -66,7 +66,8 @@ def convert_md_to_html(md_content):
             'markdown.extensions.codehilite',
             'markdown.extensions.tables',
             'markdown.extensions.nl2br',
-            'markdown.extensions.sane_lists'
+            'markdown.extensions.sane_lists',
+            'markdown.extensions.footnotes'
         ]
     )
 

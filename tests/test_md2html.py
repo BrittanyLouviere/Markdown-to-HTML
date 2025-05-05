@@ -41,6 +41,7 @@ class TestMd2Html(unittest.TestCase):
         self.main_md = os.path.join(self.nested_dir, 'main.md')
         self.sub_md = os.path.join(self.nested_dir, 'subdir', 'sub.md')
         self.frontmatter_md = os.path.join(self.fixtures_dir, 'with_frontmatter.md')
+        self.footnotes_md = os.path.join(self.fixtures_dir, 'with_footnotes.md')
 
         # Ensure test files exist
         self.assertTrue(os.path.exists(self.simple_md), f"Test file {self.simple_md} does not exist")
@@ -49,6 +50,7 @@ class TestMd2Html(unittest.TestCase):
         self.assertTrue(os.path.exists(self.main_md), f"Test file {self.main_md} does not exist")
         self.assertTrue(os.path.exists(self.sub_md), f"Test file {self.sub_md} does not exist")
         self.assertTrue(os.path.exists(self.frontmatter_md), f"Test file {self.frontmatter_md} does not exist")
+        self.assertTrue(os.path.exists(self.footnotes_md), f"Test file {self.footnotes_md} does not exist")
 
     def tearDown(self):
         """Clean up after tests."""
@@ -93,6 +95,37 @@ class TestMd2Html(unittest.TestCase):
 
         # Check that the triple dashes are not included in the HTML content
         self.assertNotIn("<p>---</p>", html_content)
+
+    def test_convert_md_with_footnotes_to_html(self):
+        """Test the markdown to HTML conversion function with footnotes."""
+        with open(self.footnotes_md, 'r', encoding='utf-8') as f:
+            md_content = f.read()
+
+        html_content = md2html.convert_md_to_html(md_content)
+
+        # Check that the HTML contains the expected content
+        self.assertIn("<h1>Document with Footnotes</h1>", html_content)
+
+        # Check that footnote references are properly converted
+        self.assertIn('<sup id="fnref:1">', html_content)  # Footnote reference 1
+        self.assertIn('<sup id="fnref:2">', html_content)  # Footnote reference 2
+        self.assertIn('<sup id="fnref:3">', html_content)  # Footnote reference 3
+
+        # Check that footnote definitions are properly converted
+        self.assertIn('<div class="footnote">', html_content)  # Footnote section
+        self.assertIn('<li id="fn:1">', html_content)  # Footnote 1
+        self.assertIn('<li id="fn:2">', html_content)  # Footnote 2
+        self.assertIn('<li id="fn:3">', html_content)  # Footnote 3
+
+        # Check that footnote content is included
+        self.assertIn('This is the first footnote', html_content)
+        self.assertIn('This is the second footnote with multiple lines', html_content)
+        self.assertIn('This is the third footnote', html_content)
+
+        # Check that backlinks are included
+        self.assertIn('href="#fnref:1"', html_content)  # Backlink for footnote 1
+        self.assertIn('href="#fnref:2"', html_content)  # Backlink for footnote 2
+        self.assertIn('href="#fnref:3"', html_content)  # Backlink for footnote 3
 
     def test_process_single_file(self):
         """Test processing a single markdown file."""

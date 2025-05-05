@@ -10,6 +10,7 @@ A Python script to convert Markdown files to HTML.
 - Option to control whether non-markdown files are copied to the output
 - Simple 1-to-1 translation without adding extra CSS, headers, footers, or JavaScript
 - Extracts YAML frontmatter from markdown files and converts it to HTML meta tags
+- Supports footnotes in markdown content
 
 ## Installation
 
