@@ -40,6 +40,7 @@ class TestMd2Html(unittest.TestCase):
         self.nested_dir = os.path.join(self.fixtures_dir, 'nested')
         self.main_md = os.path.join(self.nested_dir, 'main.md')
         self.sub_md = os.path.join(self.nested_dir, 'subdir', 'sub.md')
+        self.frontmatter_md = os.path.join(self.fixtures_dir, 'with_frontmatter.md')
 
         # Ensure test files exist
         self.assertTrue(os.path.exists(self.simple_md), f"Test file {self.simple_md} does not exist")
@@ -47,6 +48,7 @@ class TestMd2Html(unittest.TestCase):
         self.assertTrue(os.path.exists(self.nested_dir), f"Test directory {self.nested_dir} does not exist")
         self.assertTrue(os.path.exists(self.main_md), f"Test file {self.main_md} does not exist")
         self.assertTrue(os.path.exists(self.sub_md), f"Test file {self.sub_md} does not exist")
+        self.assertTrue(os.path.exists(self.frontmatter_md), f"Test file {self.frontmatter_md} does not exist")
 
     def tearDown(self):
         """Clean up after tests."""
@@ -64,6 +66,33 @@ class TestMd2Html(unittest.TestCase):
         self.assertIn("<h1>Simple Test</h1>", html_content)
         self.assertIn("<li>List item 1</li>", html_content)
         self.assertIn("<code class=\"language-python\">", html_content)
+
+    def test_convert_md_with_frontmatter_to_html(self):
+        """Test the markdown to HTML conversion function with YAML frontmatter."""
+        with open(self.frontmatter_md, 'r', encoding='utf-8') as f:
+            md_content = f.read()
+
+        html_content = md2html.convert_md_to_html(md_content)
+
+        # Check that the HTML contains meta tags for the frontmatter
+        self.assertIn('<meta name="title" content="Test Document with Frontmatter">', html_content)
+        self.assertIn('<meta name="author" content="Test Author">', html_content)
+        self.assertIn('<meta name="date" content="2023-01-01">', html_content)
+
+        # Check that the tags list is properly converted to a comma-separated list
+        self.assertIn('<meta name="tags" content="test, yaml, frontmatter">', html_content)
+
+        # Check that the HTML contains the expected content
+        self.assertIn("<h1>Document with YAML Frontmatter</h1>", html_content)
+        self.assertIn("<h2>Section 1</h2>", html_content)
+        self.assertIn("<h2>Section 2</h2>", html_content)
+
+        # Check that the frontmatter is not included in the visible HTML content
+        self.assertNotIn("title: Test Document with Frontmatter", html_content)
+        self.assertNotIn("author: Test Author", html_content)
+
+        # Check that the triple dashes are not included in the HTML content
+        self.assertNotIn("<p>---</p>", html_content)
 
     def test_process_single_file(self):
         """Test processing a single markdown file."""

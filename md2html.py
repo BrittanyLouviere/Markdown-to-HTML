@@ -11,20 +11,56 @@ import argparse
 import os
 import shutil
 import sys
+import re
 from pathlib import Path
 
 try:
     import markdown
-except ImportError:
-    print("Error: The 'markdown' package is required. Install it with 'pip install markdown'")
+    import yaml
+except ImportError as e:
+    if 'yaml' in str(e):
+        print("Error: The 'pyyaml' package is required. Install it with 'pip install pyyaml'")
+    else:
+        print("Error: The 'markdown' package is required. Install it with 'pip install markdown'")
     sys.exit(1)
+
+
+def extract_yaml_frontmatter(md_content):
+    """Extract YAML frontmatter from markdown content.
+
+    Returns a tuple of (frontmatter_dict, content_without_frontmatter)
+    If no frontmatter is found, returns (None, original_content)
+    """
+    # Regular expression to match YAML frontmatter
+    # It should be at the start of the file, between two sets of triple dashes
+    frontmatter_pattern = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.DOTALL)
+
+    match = frontmatter_pattern.match(md_content)
+    if match:
+        # Extract the YAML content
+        yaml_content = match.group(1)
+        try:
+            # Parse the YAML content
+            frontmatter = yaml.safe_load(yaml_content)
+            # Remove the frontmatter from the markdown content
+            content_without_frontmatter = md_content[match.end():]
+            return frontmatter, content_without_frontmatter
+        except yaml.YAMLError:
+            # If YAML parsing fails, assume it's not valid frontmatter
+            return None, md_content
+    else:
+        # No frontmatter found
+        return None, md_content
 
 
 def convert_md_to_html(md_content):
     """Convert markdown content to HTML."""
-    # Use extensions to better handle code blocks, nested lists, and tables
-    return markdown.markdown(
-        md_content,
+    # Extract YAML frontmatter if present
+    frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
+
+    # Convert markdown to HTML
+    html_content = markdown.markdown(
+        content_without_frontmatter,
         extensions=[
             'markdown.extensions.fenced_code',
             'markdown.extensions.codehilite',
@@ -33,6 +69,25 @@ def convert_md_to_html(md_content):
             'markdown.extensions.sane_lists'
         ]
     )
+
+    # If frontmatter was found, add it as meta tags
+    if frontmatter:
+        meta_tags = []
+        for key, value in frontmatter.items():
+            # Convert the value to a string and escape any quotes
+            if isinstance(value, list):
+                # Convert lists to comma-separated strings
+                value = ', '.join(str(item) for item in value)
+            elif isinstance(value, dict):
+                # Keep dictionaries as YAML
+                value = yaml.dump(value, default_flow_style=False)
+            str_value = str(value).replace('"', '&quot;')
+            meta_tags.append(f'<meta name="{key}" content="{str_value}">')
+
+        # Add the meta tags to the beginning of the HTML content
+        html_content = '\n'.join(meta_tags) + '\n' + html_content
+
+    return html_content
 
 
 def process_file(input_file, output_file, copy_non_md=True):
