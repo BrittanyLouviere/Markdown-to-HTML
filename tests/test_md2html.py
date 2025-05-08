@@ -394,5 +394,83 @@ class TestMd2Html(unittest.TestCase):
             sys.argv = original_argv
 
 
+    def test_update_md_file_and_regenerate_html(self):
+        """Test that when a markdown file is updated and the script is run again, the HTML is updated."""
+        # Create a temporary markdown file
+        temp_md_path = os.path.join(self.temp_dir, 'update_test.md')
+        temp_html_path = os.path.join(self.temp_dir, 'update_test.html')
+
+        # Initial content
+        initial_content = """# Initial Title
+
+This is the initial content.
+
+- Item 1
+- Item 2
+"""
+
+        # Write initial content to the file
+        with open(temp_md_path, 'w', encoding='utf-8') as f:
+            f.write(initial_content)
+
+        # Process the file with overwrite mode
+        result = md2html.process_file(temp_md_path, temp_md_path, copy_non_md=True, mode='overwrite')
+
+        # Check that the processing was successful
+        self.assertTrue(result)
+
+        # Check that the output HTML file exists
+        self.assertTrue(os.path.exists(temp_html_path))
+
+        # Check the content of the output file
+        with open(temp_html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        # Verify initial content was converted correctly
+        self.assertIn("<h1>Initial Title</h1>", html_content)
+        self.assertIn("<li>Item 1</li>", html_content)
+        self.assertIn("<li>Item 2</li>", html_content)
+
+        # Now update the markdown file
+        updated_content = """# Updated Title
+
+This is the updated content.
+
+- Item 1
+- Item 2
+- Item 3
+
+```python
+print("Hello, updated world!")
+```
+"""
+
+        # Write updated content to the file
+        with open(temp_md_path, 'w', encoding='utf-8') as f:
+            f.write(updated_content)
+
+        # Process the file again with overwrite mode
+        result = md2html.process_file(temp_md_path, temp_md_path, copy_non_md=True, mode='overwrite')
+
+        # Check that the processing was successful
+        self.assertTrue(result)
+
+        # Check that the output HTML file still exists
+        self.assertTrue(os.path.exists(temp_html_path))
+
+        # Check the content of the updated output file
+        with open(temp_html_path, 'r', encoding='utf-8') as f:
+            updated_html_content = f.read()
+
+        # Verify the HTML has been updated with the new content
+        self.assertIn("<h1>Updated Title</h1>", updated_html_content)
+        self.assertIn("<li>Item 3</li>", updated_html_content)
+        self.assertIn("<code class=\"language-python\">", updated_html_content)
+        self.assertIn("Hello, updated world!", updated_html_content)
+
+        # Verify the old content is not in the updated HTML
+        self.assertNotIn("<h1>Initial Title</h1>", updated_html_content)
+
+
 if __name__ == '__main__':
     unittest.main()
