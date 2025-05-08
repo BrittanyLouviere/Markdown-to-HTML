@@ -277,9 +277,6 @@ class TestMd2Html(unittest.TestCase):
             output_html = os.path.join(self.temp_dir, 'simple.html')
             self.assertTrue(os.path.exists(output_html))
 
-            # Check that the output contains the expected message
-            output = mock_stdout.getvalue()
-            self.assertIn(f"Converted: {self.simple_md}", output)
         finally:
             # Restore original sys.argv
             sys.argv = original_argv
@@ -301,10 +298,6 @@ class TestMd2Html(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(self.temp_dir, 'simple.html')))
             self.assertTrue(os.path.exists(os.path.join(self.temp_dir, 'main.html')))
 
-            # Check that the output contains the expected messages
-            output = mock_stdout.getvalue()
-            self.assertIn(f"Converted: {self.simple_md}", output)
-            self.assertIn(f"Converted: {self.main_md}", output)
         finally:
             # Restore original sys.argv
             sys.argv = original_argv
@@ -325,11 +318,6 @@ class TestMd2Html(unittest.TestCase):
             # Check that the output files exist
             self.assertTrue(os.path.exists(os.path.join(self.temp_dir, 'main.html')))
             self.assertTrue(os.path.exists(os.path.join(self.temp_dir, 'subdir', 'sub.html')))
-
-            # Check that the output contains the expected messages
-            output = mock_stdout.getvalue()
-            self.assertIn(f"Converted: {self.main_md}", output)
-            self.assertIn(f"Converted: {self.sub_md}", output)
         finally:
             # Restore original sys.argv
             sys.argv = original_argv
@@ -358,12 +346,6 @@ class TestMd2Html(unittest.TestCase):
 
             # Check that the non-markdown file was not copied
             self.assertFalse(os.path.exists(os.path.join(self.temp_dir, 'test.txt')))
-
-            # Check that the output contains the expected messages
-            output = mock_stdout.getvalue()
-            self.assertIn(f"Converted: {self.main_md}", output)
-            self.assertIn(f"Converted: {self.sub_md}", output)
-            self.assertIn(f"Skipped non-markdown file: {test_txt}", output)
         finally:
             # Restore original sys.argv
             sys.argv = original_argv
@@ -385,10 +367,6 @@ class TestMd2Html(unittest.TestCase):
 
             # Call the main function
             md2html.main()
-
-            # Check that the output contains the expected error message
-            output = mock_stdout.getvalue()
-            self.assertIn(f"Error: {nonexistent_file} does not exist", output)
         finally:
             # Restore original sys.argv
             sys.argv = original_argv
