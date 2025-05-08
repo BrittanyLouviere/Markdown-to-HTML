@@ -13,15 +13,16 @@ import shutil
 import sys
 import re
 from pathlib import Path
+import logging
 
 try:
     import markdown
     import yaml
 except ImportError as e:
     if 'yaml' in str(e):
-        print("Error: The 'pyyaml' package is required. Install it with 'pip install pyyaml'")
+        logging.error("The 'pyyaml' package is required. Install it with 'pip install pyyaml'")
     else:
-        print("Error: The 'markdown' package is required. Install it with 'pip install markdown'")
+        logging.error("The 'markdown' package is required. Install it with 'pip install markdown'")
     sys.exit(1)
 
 
@@ -31,6 +32,8 @@ def extract_yaml_frontmatter(md_content):
     Returns a tuple of (frontmatter_dict, content_without_frontmatter)
     If no frontmatter is found, returns (None, original_content)
     """
+    logging.debug("Checking for YAML frontmatter")
+
     # Regular expression to match YAML frontmatter
     # It should be at the start of the file, between two sets of triple dashes
     frontmatter_pattern = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.DOTALL)
@@ -39,54 +42,71 @@ def extract_yaml_frontmatter(md_content):
     if match:
         # Extract the YAML content
         yaml_content = match.group(1)
+        logging.debug("Found YAML frontmatter")
+
         try:
             # Parse the YAML content
             frontmatter = yaml.safe_load(yaml_content)
+            logging.debug(f"Parsed frontmatter: {frontmatter}")
+
             # Remove the frontmatter from the markdown content
             content_without_frontmatter = md_content[match.end():]
             return frontmatter, content_without_frontmatter
-        except yaml.YAMLError:
+        except yaml.YAMLError as e:
             # If YAML parsing fails, assume it's not valid frontmatter
+            logging.warning(f"Failed to parse YAML frontmatter: {e}")
             return None, md_content
     else:
         # No frontmatter found
+        logging.debug("No YAML frontmatter found")
         return None, md_content
 
 
 def convert_md_to_html(md_content):
     """Convert markdown content to HTML."""
+    logging.debug("Starting markdown to HTML conversion")
+
     # Extract YAML frontmatter if present
     frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
+
+    # List of extensions to use
+    extensions = [
+        'markdown.extensions.fenced_code',
+        'markdown.extensions.codehilite',
+        'markdown.extensions.tables',
+        'markdown.extensions.nl2br',
+        'markdown.extensions.sane_lists',
+        'markdown.extensions.footnotes'
+    ]
+    logging.debug(f"Using markdown extensions: {extensions}")
 
     # Convert markdown to HTML
     html_content = markdown.markdown(
         content_without_frontmatter,
-        extensions=[
-            'markdown.extensions.fenced_code',
-            'markdown.extensions.codehilite',
-            'markdown.extensions.tables',
-            'markdown.extensions.nl2br',
-            'markdown.extensions.sane_lists',
-            'markdown.extensions.footnotes'
-        ]
+        extensions=extensions
     )
+    logging.debug("Markdown conversion completed")
 
     # If frontmatter was found, add it as meta tags
     if frontmatter:
+        logging.debug("Adding frontmatter as meta tags")
         meta_tags = []
         for key, value in frontmatter.items():
             # Convert the value to a string and escape any quotes
             if isinstance(value, list):
                 # Convert lists to comma-separated strings
                 value = ', '.join(str(item) for item in value)
+                logging.debug(f"Converted list to string for key '{key}': {value}")
             elif isinstance(value, dict):
                 # Keep dictionaries as YAML
                 value = yaml.dump(value, default_flow_style=False)
+                logging.debug(f"Converted dict to YAML for key '{key}'")
             str_value = str(value).replace('"', '&quot;')
             meta_tags.append(f'<meta name="{key}" content="{str_value}">')
 
         # Add the meta tags to the beginning of the HTML content
         html_content = '\n'.join(meta_tags) + '\n' + html_content
+        logging.debug(f"Added {len(meta_tags)} meta tags to HTML")
 
     return html_content
 
@@ -103,8 +123,12 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
     input_path = Path(input_file)
     output_path = Path(output_file)
 
+    logging.debug(f"Processing file: {input_path} -> {output_path}")
+    logging.debug(f"Parameters: copy_non_md={copy_non_md}, mode={mode}")
+
     # Create output directory if it doesn't exist
     os.makedirs(output_path.parent, exist_ok=True)
+    logging.debug(f"Ensured output directory exists: {output_path.parent}")
 
     # Check if it's a markdown file
     if input_path.suffix.lower() in ['.md', '.markdown']:
@@ -113,12 +137,12 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
         # Check if output file already exists
         if output_html_path.exists():
             if mode == 'skip':
-                print(f"Skipped existing file: {output_html_path}")
+                logging.info(f"Skipped existing file: {output_html_path}")
                 return True
             elif mode == 'interactive':
                 response = input(f"File {output_html_path} already exists. Overwrite? (y/N): ")
                 if response.lower() != 'y':
-                    print(f"Skipped: {input_path}")
+                    logging.info(f"Skipped: {input_path}")
                     return True
             # For 'overwrite' mode, we proceed without asking
 
@@ -131,32 +155,32 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
             with open(output_html_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
 
-            print(f"Converted: {input_path} -> {output_html_path}")
+            logging.info(f"Converted: {input_path} -> {output_html_path}")
             return True
         except Exception as e:
-            print(f"Error processing {input_path}: {e}")
+            logging.error(f"Error processing {input_path}: {e}")
             return False
     elif copy_non_md:
         # For non-markdown files, check if the output file already exists
         if output_path.exists():
             if mode == 'skip':
-                print(f"Skipped existing file: {output_path}")
+                logging.info(f"Skipped existing file: {output_path}")
                 return True
             elif mode == 'interactive':
                 response = input(f"File {output_path} already exists. Overwrite? (y/N): ")
                 if response.lower() != 'y':
-                    print(f"Skipped: {input_path}")
+                    logging.info(f"Skipped: {input_path}")
                     return True
 
         try:
             shutil.copy2(input_path, output_path)
-            print(f"Copied: {input_path} -> {output_path}")
+            logging.info(f"Copied: {input_path} -> {output_path}")
             return True
         except Exception as e:
-            print(f"Error copying {input_path}: {e}")
+            logging.error(f"Error copying {input_path}: {e}")
             return False
     else:
-        print(f"Skipped non-markdown file: {input_path}")
+        logging.info(f"Skipped non-markdown file: {input_path}")
         return True
 
 
@@ -168,22 +192,44 @@ def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive
         output_dir: Path to the output directory
         copy_non_md: Whether to copy non-markdown files
         mode: How to handle existing files ('skip', 'overwrite', or 'interactive')
+
+    Raises:
+        ValueError: If the output directory is inside the input directory
     """
-    input_path = Path(input_dir)
-    output_path = Path(output_dir)
+    input_path = Path(input_dir).resolve()
+    output_path = Path(output_dir).resolve()
+
+    logging.debug(f"Processing directory: {input_path} -> {output_path}")
+    logging.debug(f"Parameters: copy_non_md={copy_non_md}, mode={mode}")
+
+    # Check if output directory is inside input directory
+    try:
+        if output_path != input_path and output_path.is_relative_to(input_path):
+            error_msg = f"Output directory '{output_path}' is inside input directory '{input_path}'. This would cause an infinite loop."
+            raise ValueError(error_msg)
+    except AttributeError:
+        # For Python < 3.9 that doesn't have is_relative_to
+        if str(output_path).startswith(str(input_path + os.sep)) and output_path != input_path:
+            error_msg = f"Output directory '{output_path}' is inside input directory '{input_path}'. This would cause an infinite loop."
+            raise ValueError(error_msg)
 
     success = True
+    file_count = 0
 
     for item in input_path.rglob('*'):
         if item.is_file():
+            file_count += 1
             # Calculate the relative path from input_dir to the file
             rel_path = item.relative_to(input_path)
             # Construct the output file path
             out_file = output_path / rel_path
 
+            logging.debug(f"Found file: {rel_path}")
+
             if not process_file(item, out_file, copy_non_md, mode):
                 success = False
 
+    logging.debug(f"Directory processing complete. Processed {file_count} files.")
     return success
 
 
@@ -203,7 +249,35 @@ def main():
     mode_group.add_argument('-i', '--interactive', action='store_true',
                         help='Ask before overwriting existing files (default)')
 
+    # Add verbosity options
+    verbosity_group = parser.add_mutually_exclusive_group()
+    verbosity_group.add_argument('-q', '--quiet', action='store_true',
+                        help='Show only error messages')
+    verbosity_group.add_argument('-v', '--verbose', action='store_true',
+                        help='Show informational messages')
+    verbosity_group.add_argument('--debug', action='store_true',
+                        help='Show debug messages')
+
     args = parser.parse_args()
+
+    # Configure logging based on verbosity level
+    if args.debug:
+        log_level = logging.DEBUG
+    elif args.verbose:
+        log_level = logging.INFO
+    elif args.quiet:
+        log_level = logging.ERROR
+    else:
+        # Default: show warnings and errors
+        log_level = logging.WARNING
+
+    logging.basicConfig(
+        level=log_level,
+        format='%(levelname)s: %(message)s'
+    )
+
+    # Log the arguments in debug mode
+    logging.debug(f"Arguments: {args}")
 
     # Determine the file handling mode
     if args.skip:
@@ -215,11 +289,14 @@ def main():
         mode = 'interactive'
 
     # Process each input
+    logging.debug("Starting to process input paths")
+
     for input_path in args.input:
         path = Path(input_path)
+        logging.debug(f"Processing input path: {path}")
 
         if not path.exists():
-            print(f"Error: {path} does not exist")
+            logging.error(f"{path} does not exist")
             continue
 
         # Determine output path
@@ -227,6 +304,8 @@ def main():
             output_base = Path(args.output)
         else:
             output_base = path.parent
+
+        logging.debug(f"Output base path: {output_base}")
 
         if path.is_file():
             # For a single file
@@ -237,7 +316,13 @@ def main():
                 # Otherwise, output to the same directory
                 output_file = path
 
-            process_file(path, output_file, not args.no_copy, mode)
+            logging.debug(f"Processing single file: {path} -> {output_file}")
+            try:
+                process_file(path, output_file, not args.no_copy, mode)
+                logging.debug(f"Completed processing file: {path}")
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
 
         elif path.is_dir():
             # For a directory
@@ -248,7 +333,15 @@ def main():
                 # Otherwise, use the input directory
                 output_dir = path
 
-            process_directory(path, output_dir, not args.no_copy, mode)
+            logging.debug(f"Processing directory: {path} -> {output_dir}")
+            try:
+                process_directory(path, output_dir, not args.no_copy, mode)
+                logging.debug(f"Completed processing directory: {path}")
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+
+    logging.debug("All input paths processed")
 
 
 if __name__ == "__main__":

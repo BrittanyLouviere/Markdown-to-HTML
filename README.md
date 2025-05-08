@@ -36,10 +36,18 @@ python md2html.py [options] input [input ...]
 ### Options
 
 - `-o, --output`: Specify the output directory (default: same as input)
+  - Note: The output directory cannot be inside the input directory when processing directories, as this would cause an infinite loop
 - `--no-copy`: Do not copy non-markdown files to the output directory
 - `-s, --skip`: Skip files that already exist
 - `-w, --overwrite`: Overwrite all existing files without asking
 - `-i, --interactive`: Ask before overwriting existing files (default) - default answer is 'no'
+
+#### Verbosity Options
+
+- `-q, --quiet`: Show only error messages
+- `-v, --verbose`: Show informational messages
+- `--debug`: Show debug messages
+- Default: Show only error and warning messages
 
 ### Examples
 
@@ -87,6 +95,18 @@ python md2html.py [options] input [input ...]
    python md2html.py input_directory/ --interactive
    # Or using the short form:
    python md2html.py input_directory/ -i
+   ```
+
+9. Using verbosity options:
+   ```
+   # Quiet mode - show only error messages
+   python md2html.py input_directory/ -q
+
+   # Verbose mode - show informational messages
+   python md2html.py input_directory/ -v
+
+   # Debug mode - show debug messages
+   python md2html.py input_directory/ --debug
    ```
 
 ## YAML Frontmatter
