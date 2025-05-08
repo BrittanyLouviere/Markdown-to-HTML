@@ -173,6 +173,11 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
                     return True
 
         try:
+            # Skip copying if source and destination are the same file
+            if input_path.resolve() == output_path.resolve():
+                logging.info(f"Skipped copying to self: {input_path}")
+                return True
+
             shutil.copy2(input_path, output_path)
             logging.info(f"Copied: {input_path} -> {output_path}")
             return True
