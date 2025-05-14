@@ -76,14 +76,23 @@ def convert_md_to_html(md_content):
         'markdown.extensions.tables',
         'markdown.extensions.nl2br',
         'markdown.extensions.sane_lists',
-        'markdown.extensions.footnotes'
+        'markdown.extensions.footnotes',
+        'mdx_wikilink_plus'
     ]
+    # Configuration for extensions
+    ext_configs = {
+        'mdx_wikilink_plus': {
+            'url_whitespace': ' ',
+            'end_url': '.html',
+        },
+    }
     logging.debug(f"Using markdown extensions: {extensions}")
 
     # Convert markdown to HTML
     html_content = markdown.markdown(
         content_without_frontmatter,
-        extensions=extensions
+        extensions=extensions,
+        extension_configs=ext_configs
     )
     logging.debug("Markdown conversion completed")
 
