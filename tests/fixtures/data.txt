@@ -1,2 +1,0 @@
-This is a non-markdown file.
-It should be copied as-is when the --no-copy flag is not used.
