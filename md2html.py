@@ -247,114 +247,93 @@ def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive
     return success
 
 
-def main():
+def setup_argument_parser():
     parser = argparse.ArgumentParser(description='Convert Markdown files to HTML')
     parser.add_argument('input', nargs='+', help='Input markdown file(s) or directory')
     parser.add_argument('-o', '--output', help='Output directory (default: same as input)')
-    parser.add_argument('--no-copy', action='store_true', 
+    parser.add_argument('--no-copy', action='store_true',
                         help='Do not copy non-markdown files to the output directory')
 
-    # Add a mutually exclusive group for file handling modes
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument('-s', '--skip', action='store_true',
-                        help='Skip files that already exist')
+                            help='Skip files that already exist')
     mode_group.add_argument('-w', '--overwrite', action='store_true',
-                        help='Overwrite all existing files without asking')
+                            help='Overwrite all existing files without asking')
     mode_group.add_argument('-i', '--interactive', action='store_true',
-                        help='Ask before overwriting existing files (default)')
+                            help='Ask before overwriting existing files (default)')
 
-    # Add verbosity options
     verbosity_group = parser.add_mutually_exclusive_group()
     verbosity_group.add_argument('-q', '--quiet', action='store_true',
-                        help='Show only error messages')
+                                 help='Show only error messages')
     verbosity_group.add_argument('-v', '--verbose', action='store_true',
-                        help='Show informational messages')
+                                 help='Show informational messages')
     verbosity_group.add_argument('--debug', action='store_true',
-                        help='Show debug messages')
+                                 help='Show debug messages')
+    return parser.parse_args()
 
-    args = parser.parse_args()
 
-    # Configure logging based on verbosity level
-    if args.debug:
-        log_level = logging.DEBUG
-    elif args.verbose:
-        log_level = logging.INFO
-    elif args.quiet:
-        log_level = logging.ERROR
-    else:
-        # Default: show warnings and errors
-        log_level = logging.WARNING
+def configure_logging(args):
+    log_levels = {
+        'debug': logging.DEBUG,
+        'verbose': logging.INFO,
+        'quiet': logging.ERROR,
+        'default': logging.WARNING
+    }
 
-    logging.basicConfig(
-        level=log_level,
-        format='%(levelname)s: %(message)s'
-    )
+    level = (logging.DEBUG if args.debug else
+             logging.INFO if args.verbose else
+             logging.ERROR if args.quiet else
+             logging.WARNING)
 
-    # Log the arguments in debug mode
+    logging.basicConfig(level=level, format='%(levelname)s: %(message)s')
     logging.debug(f"Arguments: {args}")
 
-    # Determine the file handling mode
+
+def determine_file_mode(args):
     if args.skip:
-        mode = 'skip'
+        return 'skip'
     elif args.overwrite:
-        mode = 'overwrite'
-    else:
-        # Default to interactive mode
-        mode = 'interactive'
+        return 'overwrite'
+    return 'interactive'
 
-    # Process each input
-    logging.debug("Starting to process input paths")
 
-    for input_path in args.input:
-        path = Path(input_path)
-        logging.debug(f"Processing input path: {path}")
+def determine_output_path(input_path, output_base):
+    if output_base:
+        return output_base / input_path.name if input_path.is_file() else output_base
+    return input_path.parent if input_path.is_file() else input_path
 
-        if not path.exists():
-            logging.error(f"{path} does not exist")
-            continue
 
-        # Determine output path
-        if args.output:
-            output_base = Path(args.output)
-        else:
-            output_base = path.parent
+def process_input_path(input_path, output_base, copy_files, mode):
+    path = Path(input_path)
+    if not path.exists():
+        logging.error(f"{path} does not exist")
+        return
 
-        logging.debug(f"Output base path: {output_base}")
+    logging.debug(f"Processing input path: {path}")
+    output_path = determine_output_path(path, output_base)
 
+    try:
         if path.is_file():
-            # For a single file
-            if args.output:
-                # If output is specified, use it as the directory
-                output_file = output_base / path.name
-            else:
-                # Otherwise, output to the same directory
-                output_file = path
-
-            logging.debug(f"Processing single file: {path} -> {output_file}")
-            try:
-                process_file(path, output_file, not args.no_copy, mode)
-                logging.debug(f"Completed processing file: {path}")
-            except ValueError as e:
-                print(f"Error: {e}", file=sys.stderr)
-                sys.exit(1)
-
+            process_file(path, output_path, copy_files, mode)
         elif path.is_dir():
-            # For a directory
-            if args.output:
-                # If output is specified, use it as the base directory
-                output_dir = output_base
-            else:
-                # Otherwise, use the input directory
-                output_dir = path
+            process_directory(path, output_path, copy_files, mode)
+        logging.debug(f"Completed processing: {path}")
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
-            logging.debug(f"Processing directory: {path} -> {output_dir}")
-            try:
-                process_directory(path, output_dir, not args.no_copy, mode)
-                logging.debug(f"Completed processing directory: {path}")
-            except ValueError as e:
-                print(f"Error: {e}", file=sys.stderr)
-                sys.exit(1)
 
+def main():
+    args = setup_argument_parser()
+    configure_logging(args)
+
+    mode = determine_file_mode(args)
+    copy_files = not args.no_copy
+    output_base = Path(args.output) if args.output else None
+
+    logging.debug("Starting to process input paths")
+    for input_path in args.input:
+        process_input_path(input_path, output_base, copy_files, mode)
     logging.debug("All input paths processed")
 
 
