@@ -37,10 +37,10 @@ try:
     import markdown
     import yaml
     import jinja2
-except ImportError as e:
-    if 'yaml' in str(e):
+except ImportError as import_error:
+    if 'yaml' in str(import_error):
         logging.error("The 'pyyaml' package is required. Install it with 'pip install pyyaml'")
-    elif 'jinja2' in str(e):
+    elif 'jinja2' in str(import_error):
         logging.error("The 'jinja2' package is required. Install it with 'pip install jinja2'")
     else:
         logging.error("The 'markdown' package is required. Install it with 'pip install markdown'")
@@ -48,14 +48,6 @@ except ImportError as e:
 
 
 def load_template(template_path=None):
-    """Load a Jinja2 template from a file or use the default template.
-
-    Args:
-        template_path: Path to the template file (optional)
-
-    Returns:
-        A Jinja2 Template object
-    """
     if template_path and os.path.exists(template_path):
         try:
             with open(template_path, 'r', encoding='utf-8') as f:
@@ -72,11 +64,6 @@ def load_template(template_path=None):
 
 
 def extract_yaml_frontmatter(md_content):
-    """Extract YAML frontmatter from markdown content.
-
-    Returns a tuple of (frontmatter_dict, content_without_frontmatter)
-    If no frontmatter is found, returns (None, original_content)
-    """
     logging.debug("Checking for YAML frontmatter")
 
     # Regular expression to match YAML frontmatter
@@ -108,15 +95,6 @@ def extract_yaml_frontmatter(md_content):
 
 
 def convert_md_to_html(md_content, template_path=None):
-    """Convert markdown content to HTML using a template.
-
-    Args:
-        md_content: The markdown content to convert
-        template_path: Path to a Jinja2 template file (optional)
-
-    Returns:
-        The rendered HTML content
-    """
     logging.debug("Starting markdown to HTML conversion")
 
     # Extract YAML frontmatter if present
@@ -184,17 +162,19 @@ def convert_md_to_html(md_content, template_path=None):
 
     return html_content
 
+def should_skip(input_path, output_html_path, mode):
+    if output_html_path.exists():
+        if mode == 'skip':
+            logging.info(f"Skipped existing file: {output_html_path}")
+            return True
+        elif mode == 'interactive':
+            response = input(f"File {output_html_path} already exists. Overwrite? (y/N): ")
+            if response.lower() != 'y':
+                logging.info(f"Skipped: {input_path}")
+                return True
+    return False
 
 def process_file(input_file, output_file, copy_non_md=True, mode='interactive', template=None):
-    """Process a single file, converting if it's markdown or copying if specified.
-
-    Args:
-        input_file: Path to the input file
-        output_file: Path to the output file
-        copy_non_md: Whether to copy non-markdown files
-        mode: How to handle existing files ('skip', 'overwrite', or 'interactive')
-        template: Path to a Jinja2 template file (optional)
-    """
     input_path = Path(input_file)
     output_path = Path(output_file)
 
@@ -209,17 +189,7 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
     if input_path.suffix.lower() in ['.md', '.markdown']:
         output_html_path = output_path.with_suffix('.html')
 
-        # Check if output file already exists
-        if output_html_path.exists():
-            if mode == 'skip':
-                logging.info(f"Skipped existing file: {output_html_path}")
-                return True
-            elif mode == 'interactive':
-                response = input(f"File {output_html_path} already exists. Overwrite? (y/N): ")
-                if response.lower() != 'y':
-                    logging.info(f"Skipped: {input_path}")
-                    return True
-            # For 'overwrite' mode, we proceed without asking
+        if should_skip(input_path, output_html_path, mode): return True
 
         try:
             with open(input_path, 'r', encoding='utf-8') as f:
@@ -236,16 +206,7 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
             logging.error(f"Error processing {input_path}: {e}")
             return False
     elif copy_non_md:
-        # For non-markdown files, check if the output file already exists
-        if output_path.exists():
-            if mode == 'skip':
-                logging.info(f"Skipped existing file: {output_path}")
-                return True
-            elif mode == 'interactive':
-                response = input(f"File {output_path} already exists. Overwrite? (y/N): ")
-                if response.lower() != 'y':
-                    logging.info(f"Skipped: {input_path}")
-                    return True
+        if should_skip(input_path, output_path, mode): return True
 
         try:
             shutil.copy2(input_path, output_path)
@@ -260,18 +221,6 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
 
 
 def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive', template=None):
-    """Process all files in a directory recursively.
-
-    Args:
-        input_dir: Path to the input directory
-        output_dir: Path to the output directory
-        copy_non_md: Whether to copy non-markdown files
-        mode: How to handle existing files ('skip', 'overwrite', or 'interactive')
-        template: Path to a Jinja2 template file (optional)
-
-    Raises:
-        ValueError: If the output directory is inside the input directory
-    """
     input_path = Path(input_dir).resolve()
     output_path = Path(output_dir).resolve()
 
@@ -284,15 +233,9 @@ def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive
         raise ValueError(error_msg)
 
     # Check if output directory is inside input directory
-    try:
-        if output_path.is_relative_to(input_path):
-            error_msg = f"Output directory '{output_path}' is inside input directory '{input_path}'. This would cause an infinite loop."
-            raise ValueError(error_msg)
-    except AttributeError:
-        # For Python < 3.9 that doesn't have is_relative_to
-        if str(output_path).startswith(str(input_path + os.sep)):
-            error_msg = f"Output directory '{output_path}' is inside input directory '{input_path}'. This would cause an infinite loop."
-            raise ValueError(error_msg)
+    if output_path.is_relative_to(input_path):
+        error_msg = f"Output directory '{output_path}' is inside input directory '{input_path}'. This would cause an infinite loop."
+        raise ValueError(error_msg)
 
     success = True
     file_count = 0
@@ -341,13 +284,6 @@ def setup_argument_parser():
 
 
 def configure_logging(args):
-    log_levels = {
-        'debug': logging.DEBUG,
-        'verbose': logging.INFO,
-        'quiet': logging.ERROR,
-        'default': logging.WARNING
-    }
-
     level = (logging.DEBUG if args.debug else
              logging.INFO if args.verbose else
              logging.ERROR if args.quiet else
