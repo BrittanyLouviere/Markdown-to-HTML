@@ -36,8 +36,8 @@ python md2html.py [options] input [input ...]
 
 ### Options
 
-- `-o, --output`: Specify the output directory (default: same as input)
-  - Note: The output directory cannot be inside the input directory when processing directories, as this would cause an infinite loop
+- `-o, --output`: Specify the output directory (required)
+  - Note: The output directory cannot be the same as or inside the input directory
 - `-t, --template`: Specify a Jinja2 HTML template file to use for rendering
 - `--no-copy`: Do not copy non-markdown files to the output directory
 - `-s, --skip`: Skip files that already exist
@@ -55,65 +55,60 @@ python md2html.py [options] input [input ...]
 
 1. Convert a single file:
    ```
-   python md2html.py document.md
+   python md2html.py document.md -o output_directory/
    ```
 
 2. Convert multiple files:
    ```
-   python md2html.py file1.md file2.md file3.md
+   python md2html.py file1.md file2.md file3.md -o output_directory/
    ```
 
 3. Convert all files in a directory (maintaining directory structure):
    ```
-   python md2html.py input_directory/
-   ```
-
-4. Convert files to a specific output directory:
-   ```
    python md2html.py input_directory/ -o output_directory/
    ```
 
-5. Convert files without copying non-markdown files:
+4. Convert files without copying non-markdown files:
    ```
    python md2html.py input_directory/ -o output_directory/ --no-copy
    ```
 
-6. Skip files that already exist:
+5. Skip files that already exist:
    ```
-   python md2html.py input_directory/ --skip
+   python md2html.py input_directory/ -o output_directory/ --skip
    # Or using the short form:
-   python md2html.py input_directory/ -s
+   python md2html.py input_directory/ -o output_directory/ -s
    ```
 
-7. Overwrite all existing files without asking:
+6. Overwrite all existing files without asking:
    ```
-   python md2html.py input_directory/ --overwrite
+   python md2html.py input_directory/ -o output_directory/ --overwrite
    # Or using the short form:
-   python md2html.py input_directory/ -w
+   python md2html.py input_directory/ -o output_directory/ -w
    ```
 
-8. Interactive mode (default) - ask before overwriting each file (default answer is 'no'):
+7. Interactive mode (default) - ask before overwriting each file (default answer is 'no'):
    ```
-   python md2html.py input_directory/ --interactive
+   python md2html.py input_directory/ -o output_directory/ --interactive
    # Or using the short form:
-   python md2html.py input_directory/ -i
+   python md2html.py input_directory/ -o output_directory/ -i
    ```
 
-9. Using verbosity options:
+8. Using verbosity options:
    ```
    # Quiet mode - show only error messages
-   python md2html.py input_directory/ -q
+   python md2html.py input_directory/ -o output_directory/ -q
 
    # Verbose mode - show informational messages
-   python md2html.py input_directory/ -v
+   python md2html.py input_directory/ -o output_directory/ -v
 
    # Debug mode - show debug messages
-   python md2html.py input_directory/ --debug
+   python md2html.py input_directory/ -o output_directory/ --debug
    ```
 
-10. Using a custom HTML template:
+9. Using a custom HTML template:
    ```
-   python md2html.py input_directory/ -t my_template.html
+   python md2html.py input_directory/ -o output_directory/ -t my_template.html
    ```
 
 ## Jinja2 Templating

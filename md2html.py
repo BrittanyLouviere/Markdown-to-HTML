@@ -248,11 +248,6 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
                     return True
 
         try:
-            # Skip copying if source and destination are the same file
-            if input_path.resolve() == output_path.resolve():
-                logging.info(f"Skipped copying to self: {input_path}")
-                return True
-
             shutil.copy2(input_path, output_path)
             logging.info(f"Copied: {input_path} -> {output_path}")
             return True
@@ -283,14 +278,19 @@ def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive
     logging.debug(f"Processing directory: {input_path} -> {output_path}")
     logging.debug(f"Parameters: copy_non_md={copy_non_md}, mode={mode}")
 
+    # Check if output directory is the same as input directory
+    if output_path == input_path:
+        error_msg = f"Output directory '{output_path}' cannot be the same as input directory '{input_path}'."
+        raise ValueError(error_msg)
+
     # Check if output directory is inside input directory
     try:
-        if output_path != input_path and output_path.is_relative_to(input_path):
+        if output_path.is_relative_to(input_path):
             error_msg = f"Output directory '{output_path}' is inside input directory '{input_path}'. This would cause an infinite loop."
             raise ValueError(error_msg)
     except AttributeError:
         # For Python < 3.9 that doesn't have is_relative_to
-        if str(output_path).startswith(str(input_path + os.sep)) and output_path != input_path:
+        if str(output_path).startswith(str(input_path + os.sep)):
             error_msg = f"Output directory '{output_path}' is inside input directory '{input_path}'. This would cause an infinite loop."
             raise ValueError(error_msg)
 
@@ -317,7 +317,7 @@ def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive
 def setup_argument_parser():
     parser = argparse.ArgumentParser(description='Convert Markdown files to HTML')
     parser.add_argument('input', nargs='+', help='Input markdown file(s) or directory')
-    parser.add_argument('-o', '--output', help='Output directory (default: same as input)')
+    parser.add_argument('-o', '--output', required=True, help='Output directory')
     parser.add_argument('-t', '--template', help='Path to a Jinja2 HTML template file')
     parser.add_argument('--no-copy', action='store_true',
                         help='Do not copy non-markdown files to the output directory')
@@ -366,9 +366,7 @@ def determine_file_mode(args):
 
 
 def determine_output_path(input_path, output_base):
-    if output_base:
-        return output_base / input_path.name if input_path.is_file() else output_base
-    return input_path.parent if input_path.is_file() else input_path
+    return output_base / input_path.name if input_path.is_file() else output_base
 
 
 def process_input_path(input_path, output_base, copy_files, mode, template=None):
@@ -397,7 +395,7 @@ def main():
 
     mode = determine_file_mode(args)
     copy_files = not args.no_copy
-    output_base = Path(args.output) if args.output else None
+    output_base = Path(args.output)
     template_path = args.template
 
     logging.debug("Starting to process input paths")
