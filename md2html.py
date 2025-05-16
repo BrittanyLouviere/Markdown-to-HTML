@@ -14,16 +14,61 @@ import sys
 import re
 from pathlib import Path
 import logging
+import os.path
+
+# Default HTML template
+DEFAULT_TEMPLATE = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title|default('Document') }}</title>
+    {% for meta_tag in meta_tags %}
+    {{ meta_tag }}
+    {% endfor %}
+</head>
+<body>
+{{ content }}
+</body>
+</html>
+"""
 
 try:
     import markdown
     import yaml
+    import jinja2
 except ImportError as e:
     if 'yaml' in str(e):
         logging.error("The 'pyyaml' package is required. Install it with 'pip install pyyaml'")
+    elif 'jinja2' in str(e):
+        logging.error("The 'jinja2' package is required. Install it with 'pip install jinja2'")
     else:
         logging.error("The 'markdown' package is required. Install it with 'pip install markdown'")
     sys.exit(1)
+
+
+def load_template(template_path=None):
+    """Load a Jinja2 template from a file or use the default template.
+
+    Args:
+        template_path: Path to the template file (optional)
+
+    Returns:
+        A Jinja2 Template object
+    """
+    if template_path and os.path.exists(template_path):
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+            logging.debug(f"Loaded template from {template_path}")
+            return jinja2.Template(template_content)
+        except Exception as e:
+            logging.error(f"Error loading template from {template_path}: {e}")
+            logging.warning("Falling back to default template")
+
+    # Use default template if no template path provided or loading failed
+    logging.debug("Using default template")
+    return jinja2.Template(DEFAULT_TEMPLATE)
 
 
 def extract_yaml_frontmatter(md_content):
@@ -62,8 +107,16 @@ def extract_yaml_frontmatter(md_content):
         return None, md_content
 
 
-def convert_md_to_html(md_content):
-    """Convert markdown content to HTML."""
+def convert_md_to_html(md_content, template_path=None):
+    """Convert markdown content to HTML using a template.
+
+    Args:
+        md_content: The markdown content to convert
+        template_path: Path to a Jinja2 template file (optional)
+
+    Returns:
+        The rendered HTML content
+    """
     logging.debug("Starting markdown to HTML conversion")
 
     # Extract YAML frontmatter if present
@@ -89,17 +142,26 @@ def convert_md_to_html(md_content):
     logging.debug(f"Using markdown extensions: {extensions}")
 
     # Convert markdown to HTML
-    html_content = markdown.markdown(
+    html_body = markdown.markdown(
         content_without_frontmatter,
         extensions=extensions,
         extension_configs=ext_configs
     )
     logging.debug("Markdown conversion completed")
 
-    # If frontmatter was found, add it as meta tags
+    # Prepare template context
+    context = {
+        'content': html_body,
+        'meta_tags': []
+    }
+
+    # If frontmatter was found, add it to the context
     if frontmatter:
-        logging.debug("Adding frontmatter as meta tags")
-        meta_tags = []
+        logging.debug("Processing frontmatter for template")
+        # Add frontmatter values to context
+        context.update(frontmatter)
+
+        # Create meta tags
         for key, value in frontmatter.items():
             # Convert the value to a string and escape any quotes
             if isinstance(value, list):
@@ -111,16 +173,19 @@ def convert_md_to_html(md_content):
                 value = yaml.dump(value, default_flow_style=False)
                 logging.debug(f"Converted dict to YAML for key '{key}'")
             str_value = str(value).replace('"', '&quot;')
-            meta_tags.append(f'<meta name="{key}" content="{str_value}">')
+            context['meta_tags'].append(f'<meta name="{key}" content="{str_value}">')
 
-        # Add the meta tags to the beginning of the HTML content
-        html_content = '\n'.join(meta_tags) + '\n' + html_content
-        logging.debug(f"Added {len(meta_tags)} meta tags to HTML")
+        logging.debug(f"Added {len(context['meta_tags'])} meta tags to context")
+
+    # Load template and render HTML
+    template = load_template(template_path)
+    html_content = template.render(**context)
+    logging.debug("Template rendering completed")
 
     return html_content
 
 
-def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
+def process_file(input_file, output_file, copy_non_md=True, mode='interactive', template=None):
     """Process a single file, converting if it's markdown or copying if specified.
 
     Args:
@@ -128,6 +193,7 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
         output_file: Path to the output file
         copy_non_md: Whether to copy non-markdown files
         mode: How to handle existing files ('skip', 'overwrite', or 'interactive')
+        template: Path to a Jinja2 template file (optional)
     """
     input_path = Path(input_file)
     output_path = Path(output_file)
@@ -159,7 +225,7 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
             with open(input_path, 'r', encoding='utf-8') as f:
                 md_content = f.read()
 
-            html_content = convert_md_to_html(md_content)
+            html_content = convert_md_to_html(md_content, template)
 
             with open(output_html_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
@@ -198,7 +264,7 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive'):
         return True
 
 
-def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive'):
+def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive', template=None):
     """Process all files in a directory recursively.
 
     Args:
@@ -206,6 +272,7 @@ def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive
         output_dir: Path to the output directory
         copy_non_md: Whether to copy non-markdown files
         mode: How to handle existing files ('skip', 'overwrite', or 'interactive')
+        template: Path to a Jinja2 template file (optional)
 
     Raises:
         ValueError: If the output directory is inside the input directory
@@ -240,7 +307,7 @@ def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive
 
             logging.debug(f"Found file: {rel_path}")
 
-            if not process_file(item, out_file, copy_non_md, mode):
+            if not process_file(item, out_file, copy_non_md, mode, template):
                 success = False
 
     logging.debug(f"Directory processing complete. Processed {file_count} files.")
@@ -251,6 +318,7 @@ def setup_argument_parser():
     parser = argparse.ArgumentParser(description='Convert Markdown files to HTML')
     parser.add_argument('input', nargs='+', help='Input markdown file(s) or directory')
     parser.add_argument('-o', '--output', help='Output directory (default: same as input)')
+    parser.add_argument('-t', '--template', help='Path to a Jinja2 HTML template file')
     parser.add_argument('--no-copy', action='store_true',
                         help='Do not copy non-markdown files to the output directory')
 
@@ -303,7 +371,7 @@ def determine_output_path(input_path, output_base):
     return input_path.parent if input_path.is_file() else input_path
 
 
-def process_input_path(input_path, output_base, copy_files, mode):
+def process_input_path(input_path, output_base, copy_files, mode, template=None):
     path = Path(input_path)
     if not path.exists():
         logging.error(f"{path} does not exist")
@@ -314,9 +382,9 @@ def process_input_path(input_path, output_base, copy_files, mode):
 
     try:
         if path.is_file():
-            process_file(path, output_path, copy_files, mode)
+            process_file(path, output_path, copy_files, mode, template)
         elif path.is_dir():
-            process_directory(path, output_path, copy_files, mode)
+            process_directory(path, output_path, copy_files, mode, template)
         logging.debug(f"Completed processing: {path}")
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -330,10 +398,11 @@ def main():
     mode = determine_file_mode(args)
     copy_files = not args.no_copy
     output_base = Path(args.output) if args.output else None
+    template_path = args.template
 
     logging.debug("Starting to process input paths")
     for input_path in args.input:
-        process_input_path(input_path, output_base, copy_files, mode)
+        process_input_path(input_path, output_base, copy_files, mode, template_path)
     logging.debug("All input paths processed")
 
 

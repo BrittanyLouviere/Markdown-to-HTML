@@ -8,7 +8,8 @@ A Python script to convert Markdown files to HTML.
 - Handles single files, multiple files, or entire directories
 - Maintains directory structure when processing directories
 - Option to control whether non-markdown files are copied to the output
-- Simple 1-to-1 translation without adding extra CSS, headers, footers, or JavaScript
+- Jinja2 templating for customizable HTML output
+- Default template provides simple 1-to-1 translation without extra CSS, headers, footers, or JavaScript
 - Extracts YAML frontmatter from markdown files and converts it to HTML meta tags
 - Supports footnotes in markdown content
 
@@ -22,7 +23,7 @@ A Python script to convert Markdown files to HTML.
 
 2. Install the required dependencies:
    ```
-   pip install markdown pyyaml
+   pip install markdown pyyaml jinja2
    ```
 
 ## Usage
@@ -37,6 +38,7 @@ python md2html.py [options] input [input ...]
 
 - `-o, --output`: Specify the output directory (default: same as input)
   - Note: The output directory cannot be inside the input directory when processing directories, as this would cause an infinite loop
+- `-t, --template`: Specify a Jinja2 HTML template file to use for rendering
 - `--no-copy`: Do not copy non-markdown files to the output directory
 - `-s, --skip`: Skip files that already exist
 - `-w, --overwrite`: Overwrite all existing files without asking
@@ -108,6 +110,55 @@ python md2html.py [options] input [input ...]
    # Debug mode - show debug messages
    python md2html.py input_directory/ --debug
    ```
+
+10. Using a custom HTML template:
+   ```
+   python md2html.py input_directory/ -t my_template.html
+   ```
+
+## Jinja2 Templating
+
+The script uses Jinja2 templating to generate HTML output. By default, a simple HTML template is used that includes:
+- Basic HTML structure
+- Meta tags for YAML frontmatter
+- The converted markdown content
+
+You can provide your own template using the `-t` or `--template` option. Your template should be a valid Jinja2 template and can access the following variables:
+
+- `content`: The HTML content converted from markdown
+- `meta_tags`: A list of HTML meta tags generated from the YAML frontmatter
+- Any variables defined in the YAML frontmatter
+
+For example, if your markdown file has frontmatter with `title` and `author` fields, you can access these directly in your template:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <meta name="author" content="{{ author }}">
+    {% for meta_tag in meta_tags %}
+    {{ meta_tag }}
+    {% endfor %}
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>{{ title }}</h1>
+        {% if author %}
+        <p class="author">By {{ author }}</p>
+        {% endif %}
+    </header>
+    <main>
+        {{ content }}
+    </main>
+    <footer>
+        <p>&copy; {{ author }}</p>
+    </footer>
+</body>
+</html>
+```
 
 ## YAML Frontmatter
 
