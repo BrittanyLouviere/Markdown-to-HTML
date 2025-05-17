@@ -5,13 +5,13 @@ A Python script to convert Markdown files to HTML.
 ## Features
 
 - Converts Markdown files to HTML
-- Handles single files, multiple files, or entire directories
-- Maintains directory structure when processing directories
+- Handles whole directories at a time
+- Maintains directory structure
 - Option to control whether non-markdown files are copied to the output
 - Jinja2 templating for customizable HTML output
 - Default template provides simple 1-to-1 translation without extra CSS, headers, footers, or JavaScript
 - Extracts YAML frontmatter from markdown files and converts it to HTML meta tags
-- Supports footnotes in markdown content
+- Supports footnotes and wikilinks in markdown content
 
 ## Installation
 
@@ -28,21 +28,22 @@ A Python script to convert Markdown files to HTML.
 
 ## Usage
 
-The script can handle single files, multiple files, or directories:
+```
+python md2html.py input output [options]
+```
 
-```
-python md2html.py [options] input [input ...]
-```
+Note: The output directory cannot be the same as or inside the input directory
 
 ### Options
 
-- `-o, --output`: Specify the output directory (required)
-  - Note: The output directory cannot be the same as or inside the input directory
 - `-t, --template`: Specify a Jinja2 HTML template file to use for rendering
 - `--no-copy`: Do not copy non-markdown files to the output directory
+
+#### Skip vs Overwrite Existing Files
+
 - `-s, --skip`: Skip files that already exist
 - `-w, --overwrite`: Overwrite all existing files without asking
-- `-i, --interactive`: Ask before overwriting existing files (default) - default answer is 'no'
+- `-i, --interactive`: Ask before overwriting existing files (default)
 
 #### Verbosity Options
 
@@ -53,62 +54,52 @@ python md2html.py [options] input [input ...]
 
 ### Examples
 
-1. Convert a single file:
+1. Convert all files in a directory (maintaining directory structure):
    ```
-   python md2html.py document.md -o output_directory/
-   ```
-
-2. Convert multiple files:
-   ```
-   python md2html.py file1.md file2.md file3.md -o output_directory/
+   python md2html.py input_directory/ output_directory/
    ```
 
-3. Convert all files in a directory (maintaining directory structure):
+2. Convert files without copying non-markdown files:
    ```
-   python md2html.py input_directory/ -o output_directory/
-   ```
-
-4. Convert files without copying non-markdown files:
-   ```
-   python md2html.py input_directory/ -o output_directory/ --no-copy
+   python md2html.py input_directory/ output_directory/ --no-copy
    ```
 
-5. Skip files that already exist:
+3. Skip files that already exist:
    ```
-   python md2html.py input_directory/ -o output_directory/ --skip
+   python md2html.py input_directory/ output_directory/ --skip
    # Or using the short form:
-   python md2html.py input_directory/ -o output_directory/ -s
+   python md2html.py input_directory/ output_directory/ -s
    ```
 
-6. Overwrite all existing files without asking:
+4. Overwrite all existing files without asking:
    ```
-   python md2html.py input_directory/ -o output_directory/ --overwrite
+   python md2html.py input_directory/ output_directory/ --overwrite
    # Or using the short form:
-   python md2html.py input_directory/ -o output_directory/ -w
+   python md2html.py input_directory/ output_directory/ -w
    ```
 
-7. Interactive mode (default) - ask before overwriting each file (default answer is 'no'):
+5. Interactive mode (default) - ask before overwriting each file:
    ```
-   python md2html.py input_directory/ -o output_directory/ --interactive
+   python md2html.py input_directory/ output_directory/ --interactive
    # Or using the short form:
-   python md2html.py input_directory/ -o output_directory/ -i
+   python md2html.py input_directory/ output_directory/ -i
    ```
 
-8. Using verbosity options:
+6. Using verbosity options:
    ```
    # Quiet mode - show only error messages
-   python md2html.py input_directory/ -o output_directory/ -q
+   python md2html.py input_directory/ output_directory/ -q
 
    # Verbose mode - show informational messages
-   python md2html.py input_directory/ -o output_directory/ -v
+   python md2html.py input_directory/ output_directory/ -v
 
    # Debug mode - show debug messages
-   python md2html.py input_directory/ -o output_directory/ --debug
+   python md2html.py input_directory/ output_directory/ --debug
    ```
 
-9. Using a custom HTML template:
+7. Using a custom HTML template:
    ```
-   python md2html.py input_directory/ -o output_directory/ -t my_template.html
+   python md2html.py input_directory/ output_directory/ -t my_template.html
    ```
 
 ## Jinja2 Templating

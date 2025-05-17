@@ -16,6 +16,20 @@ from pathlib import Path
 import logging
 import os.path
 
+try:
+    import markdown
+    import yaml
+    import jinja2
+except ImportError as import_error:
+    if 'yaml' in str(import_error):
+        logging.error("The 'pyyaml' package is required. Install it with 'pip install pyyaml'")
+    elif 'jinja2' in str(import_error):
+        logging.error("The 'jinja2' package is required. Install it with 'pip install jinja2'")
+    else:
+        logging.error("The 'markdown' package is required. Install it with 'pip install markdown'")
+    sys.exit(1)
+
+
 # Default HTML template
 DEFAULT_TEMPLATE = """<!DOCTYPE html>
 <html>
@@ -32,20 +46,6 @@ DEFAULT_TEMPLATE = """<!DOCTYPE html>
 </body>
 </html>
 """
-
-try:
-    import markdown
-    import yaml
-    import jinja2
-except ImportError as import_error:
-    if 'yaml' in str(import_error):
-        logging.error("The 'pyyaml' package is required. Install it with 'pip install pyyaml'")
-    elif 'jinja2' in str(import_error):
-        logging.error("The 'jinja2' package is required. Install it with 'pip install jinja2'")
-    else:
-        logging.error("The 'markdown' package is required. Install it with 'pip install markdown'")
-    sys.exit(1)
-
 
 def load_template(template_path=None):
     if template_path and os.path.exists(template_path):
@@ -93,37 +93,30 @@ def extract_yaml_frontmatter(md_content):
         logging.debug("No YAML frontmatter found")
         return None, md_content
 
-
 def convert_md_to_html(md_content, template_path=None):
     logging.debug("Starting markdown to HTML conversion")
 
     # Extract YAML frontmatter if present
     frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
 
-    # List of extensions to use
-    extensions = [
-        'markdown.extensions.fenced_code',
-        'markdown.extensions.codehilite',
-        'markdown.extensions.tables',
-        'markdown.extensions.nl2br',
-        'markdown.extensions.sane_lists',
-        'markdown.extensions.footnotes',
-        'mdx_wikilink_plus'
-    ]
-    # Configuration for extensions
-    ext_configs = {
-        'mdx_wikilink_plus': {
-            'url_whitespace': ' ',
-            'end_url': '.html',
-        },
-    }
-    logging.debug(f"Using markdown extensions: {extensions}")
-
     # Convert markdown to HTML
     html_body = markdown.markdown(
         content_without_frontmatter,
-        extensions=extensions,
-        extension_configs=ext_configs
+        extensions=[
+            'markdown.extensions.fenced_code',
+            'markdown.extensions.codehilite',
+            'markdown.extensions.tables',
+            'markdown.extensions.nl2br',
+            'markdown.extensions.sane_lists',
+            'markdown.extensions.footnotes',
+            'mdx_wikilink_plus'
+        ],
+        extension_configs={
+            'mdx_wikilink_plus': {
+                'url_whitespace': ' ',
+                'end_url': '.html',
+            },
+        }
     )
     logging.debug("Markdown conversion completed")
 
@@ -145,11 +138,9 @@ def convert_md_to_html(md_content, template_path=None):
             if isinstance(value, list):
                 # Convert lists to comma-separated strings
                 value = ', '.join(str(item) for item in value)
-                logging.debug(f"Converted list to string for key '{key}': {value}")
             elif isinstance(value, dict):
                 # Keep dictionaries as YAML
                 value = yaml.dump(value, default_flow_style=False)
-                logging.debug(f"Converted dict to YAML for key '{key}'")
             str_value = str(value).replace('"', '&quot;')
             context['meta_tags'].append(f'<meta name="{key}" content="{str_value}">')
 
@@ -168,6 +159,7 @@ def should_skip(input_path, output_html_path, mode):
             logging.info(f"Skipped existing file: {output_html_path}")
             return True
         elif mode == 'interactive':
+            # TODO add option to skip or overwrite all
             response = input(f"File {output_html_path} already exists. Overwrite? (y/N): ")
             if response.lower() != 'y':
                 logging.info(f"Skipped: {input_path}")
@@ -179,7 +171,6 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
     output_path = Path(output_file)
 
     logging.debug(f"Processing file: {input_path} -> {output_path}")
-    logging.debug(f"Parameters: copy_non_md={copy_non_md}, mode={mode}")
 
     # Create output directory if it doesn't exist
     os.makedirs(output_path.parent, exist_ok=True)
@@ -220,12 +211,39 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
         return True
 
 
-def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive', template=None):
-    input_path = Path(input_dir).resolve()
-    output_path = Path(output_dir).resolve()
+def process_directory(input_dir: Path, output_dir: Path, copy_non_md=True, mode='interactive', template=None):
+    input_path = input_dir.resolve()
+    output_path = output_dir.resolve()
 
-    logging.debug(f"Processing directory: {input_path} -> {output_path}")
-    logging.debug(f"Parameters: copy_non_md={copy_non_md}, mode={mode}")
+    success = True
+    file_success_count = 0
+    file_failed_count = 0
+
+    for item in input_path.rglob('*'):
+        if item.is_file():
+            # Calculate the relative path from input_dir to the file
+            rel_path = item.relative_to(input_path)
+            # Construct the output file path
+            out_file = output_path / rel_path
+
+            logging.debug(f"Found file: {rel_path}")
+
+            if process_file(item, out_file, copy_non_md, mode, template):
+                file_success_count += 1
+            else:
+                file_failed_count += 1
+                success = False
+
+    logging.debug(f"Directory processing complete. Processed {file_success_count} files.")
+    logging.debug(f"{file_failed_count} files failed to process.")
+    return success
+
+
+def validate_paths(input_path, output_path):
+    # Check if input directory exists
+    if not input_path.exists():
+        logging.error(f"{input_path} does not exist")
+        raise FileNotFoundError(f"{input_path} does not exist")
 
     # Check if output directory is the same as input directory
     if output_path == input_path:
@@ -234,33 +252,14 @@ def process_directory(input_dir, output_dir, copy_non_md=True, mode='interactive
 
     # Check if output directory is inside input directory
     if output_path.is_relative_to(input_path):
-        error_msg = f"Output directory '{output_path}' is inside input directory '{input_path}'. This would cause an infinite loop."
+        error_msg = f"Output directory '{output_path}' cannot be inside input directory '{input_path}'."
         raise ValueError(error_msg)
-
-    success = True
-    file_count = 0
-
-    for item in input_path.rglob('*'):
-        if item.is_file():
-            file_count += 1
-            # Calculate the relative path from input_dir to the file
-            rel_path = item.relative_to(input_path)
-            # Construct the output file path
-            out_file = output_path / rel_path
-
-            logging.debug(f"Found file: {rel_path}")
-
-            if not process_file(item, out_file, copy_non_md, mode, template):
-                success = False
-
-    logging.debug(f"Directory processing complete. Processed {file_count} files.")
-    return success
 
 
 def setup_argument_parser():
     parser = argparse.ArgumentParser(description='Convert Markdown files to HTML')
-    parser.add_argument('input', nargs='+', help='Input markdown file(s) or directory')
-    parser.add_argument('-o', '--output', required=True, help='Output directory')
+    parser.add_argument('input', help='Input markdown file(s) or directory')
+    parser.add_argument('output', help='Output directory')
     parser.add_argument('-t', '--template', help='Path to a Jinja2 HTML template file')
     parser.add_argument('--no-copy', action='store_true',
                         help='Do not copy non-markdown files to the output directory')
@@ -301,43 +300,20 @@ def determine_file_mode(args):
     return 'interactive'
 
 
-def determine_output_path(input_path, output_base):
-    return output_base / input_path.name if input_path.is_file() else output_base
-
-
-def process_input_path(input_path, output_base, copy_files, mode, template=None):
-    path = Path(input_path)
-    if not path.exists():
-        logging.error(f"{path} does not exist")
-        return
-
-    logging.debug(f"Processing input path: {path}")
-    output_path = determine_output_path(path, output_base)
-
-    try:
-        if path.is_file():
-            process_file(path, output_path, copy_files, mode, template)
-        elif path.is_dir():
-            process_directory(path, output_path, copy_files, mode, template)
-        logging.debug(f"Completed processing: {path}")
-    except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
 def main():
     args = setup_argument_parser()
     configure_logging(args)
 
     mode = determine_file_mode(args)
     copy_files = not args.no_copy
-    output_base = Path(args.output)
+    input_path = Path(args.input)
+    output_path = Path(args.output)
     template_path = args.template
 
-    logging.debug("Starting to process input paths")
-    for input_path in args.input:
-        process_input_path(input_path, output_base, copy_files, mode, template_path)
-    logging.debug("All input paths processed")
+    validate_paths(input_path, output_path)
+    logging.debug(f"Arguments validated. Starting processing.")
+    logging.debug(f"Input: {input_path}, Output: {output_path}, Copy files: {copy_files}, Mode: {mode}, Template: {template_path}")
+    process_directory(input_path, output_path, copy_files, mode, template_path)
 
 
 if __name__ == "__main__":
