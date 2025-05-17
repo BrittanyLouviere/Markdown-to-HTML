@@ -157,14 +157,20 @@ def should_skip(input_path, output_html_path, mode):
     if output_html_path.exists():
         if mode == 'skip':
             logging.info(f"Skipped existing file: {output_html_path}")
-            return True
+            return True, mode
         elif mode == 'interactive':
             # TODO add option to skip or overwrite all
-            response = input(f"File {output_html_path} already exists. Overwrite? (y/N): ")
-            if response.lower() != 'y':
+            response = input(f"File {output_html_path} already exists. Overwrite? (y/N/o/s): ")
+            if response.lower() == 'o':
+                logging.info(f"Switching to overwrite mode")
+                return False, 'overwrite'
+            elif response.lower() == 's':
+                logging.info(f"Switching to skip mode")
+                return True, 'skip'
+            elif response.lower() != 'y':
                 logging.info(f"Skipped: {input_path}")
-                return True
-    return False
+                return True, mode
+    return False, mode
 
 def process_file(input_file, output_file, copy_non_md=True, mode='interactive', template=None):
     input_path = Path(input_file)
@@ -180,7 +186,8 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
     if input_path.suffix.lower() in ['.md', '.markdown']:
         output_html_path = output_path.with_suffix('.html')
 
-        if should_skip(input_path, output_html_path, mode): return True
+        should_skip_file, mode = should_skip(input_path, output_html_path, mode)
+        if should_skip_file: return True, mode
 
         try:
             with open(input_path, 'r', encoding='utf-8') as f:
@@ -192,23 +199,24 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
                 f.write(html_content)
 
             logging.info(f"Converted: {input_path} -> {output_html_path}")
-            return True
+            return True, mode
         except Exception as e:
             logging.error(f"Error processing {input_path}: {e}")
-            return False
+            return False, mode
     elif copy_non_md:
-        if should_skip(input_path, output_path, mode): return True
+        should_skip_file, mode = should_skip(input_path, output_path, mode)
+        if should_skip_file: return True, mode
 
         try:
             shutil.copy2(input_path, output_path)
             logging.info(f"Copied: {input_path} -> {output_path}")
-            return True
+            return True, mode
         except Exception as e:
             logging.error(f"Error copying {input_path}: {e}")
-            return False
+            return False, mode
     else:
         logging.info(f"Skipped non-markdown file: {input_path}")
-        return True
+        return True, mode
 
 
 def process_directory(input_dir: Path, output_dir: Path, copy_non_md=True, mode='interactive', template=None):
@@ -228,14 +236,17 @@ def process_directory(input_dir: Path, output_dir: Path, copy_non_md=True, mode=
 
             logging.debug(f"Found file: {rel_path}")
 
-            if process_file(item, out_file, copy_non_md, mode, template):
+            file_success, mode = process_file(item, out_file, copy_non_md, mode, template)
+            if file_success:
                 file_success_count += 1
             else:
                 file_failed_count += 1
                 success = False
 
-    logging.debug(f"Directory processing complete. Processed {file_success_count} files.")
-    logging.debug(f"{file_failed_count} files failed to process.")
+    logging.info(f"Directory processing complete.")
+    logging.info(f"Processed {file_success_count} files.")
+    if file_failed_count > 0:
+        logging.info(f"{file_failed_count} files failed to process.")
     return success
 
 
