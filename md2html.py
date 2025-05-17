@@ -159,7 +159,6 @@ def should_skip(input_path, output_html_path, mode):
             logging.info(f"Skipped existing file: {output_html_path}")
             return True, mode
         elif mode == 'interactive':
-            # TODO add option to skip or overwrite all
             response = input(f"File {output_html_path} already exists. Overwrite? (y/N/o/s): ")
             if response.lower() == 'o':
                 logging.info(f"Switching to overwrite mode")
