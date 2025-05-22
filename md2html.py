@@ -153,7 +153,9 @@ def convert_md_to_html(md_content, template_path=None):
 
     return html_content
 
-def should_skip(input_path, output_html_path, mode):
+def should_skip(input_path: Path, output_html_path: Path, mode):
+    if input_path.suffix.lower() == '.jinja':
+        return True, mode
     if output_html_path.exists():
         if mode == 'skip':
             logging.info(f"Skipped existing file: {output_html_path}")
