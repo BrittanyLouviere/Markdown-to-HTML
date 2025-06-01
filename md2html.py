@@ -12,9 +12,10 @@ import os
 import shutil
 import sys
 import re
-from pathlib import Path
+from pathlib import Path, PurePath
 import logging
 import os.path
+from typing import Any
 
 try:
     import markdown
@@ -173,7 +174,33 @@ def should_skip(input_path: Path, output_html_path: Path, mode):
                 return True, mode
     return False, mode
 
-def process_file(input_file, output_file, copy_non_md=True, mode='interactive', template=None):
+
+def process_other_files(input_file: PurePath, output_file: Path,
+    copy_non_md: object = True, mode: object = 'interactive') -> tuple[bool, Any] | tuple[bool, str]:
+
+    logging.debug(f"Processing file: {input_file} -> {output_file}")
+
+    # Create output directory if it doesn't exist
+    os.makedirs(output_file.parent, exist_ok=True)
+    logging.debug(f"Ensured output directory exists: {output_file.parent}")
+
+    if copy_non_md:
+        should_skip_file, mode = should_skip(input_file, output_file, mode)
+        if should_skip_file: return True, mode
+
+        try:
+            shutil.copy2(input_file, output_file)
+            logging.info(f"Copied: {input_file} -> {output_file}")
+            return True, mode
+        except Exception as e:
+            logging.error(f"Error copying {input_file}: {e}")
+            return False, mode
+    else:
+        logging.info(f"Skipped non-markdown file: {input_file}")
+        return True, mode
+
+
+def process_md_file(input_file: PurePath, output_file: Path, template: Path = None) -> bool:
     input_path = Path(input_file)
     output_path = Path(output_file)
 
@@ -183,66 +210,46 @@ def process_file(input_file, output_file, copy_non_md=True, mode='interactive', 
     os.makedirs(output_path.parent, exist_ok=True)
     logging.debug(f"Ensured output directory exists: {output_path.parent}")
 
-    # Check if it's a markdown file
-    if input_path.suffix.lower() in ['.md', '.markdown']:
-        output_html_path = output_path.with_suffix('.html')
+    output_html_path = output_path.with_suffix('.html')
 
-        should_skip_file, mode = should_skip(input_path, output_html_path, mode)
-        if should_skip_file: return True, mode
+    try:
+        with open(input_path, 'r', encoding='utf-8') as f:
+            md_content = f.read()
 
-        try:
-            with open(input_path, 'r', encoding='utf-8') as f:
-                md_content = f.read()
+        html_content = convert_md_to_html(md_content, template)
 
-            html_content = convert_md_to_html(md_content, template)
+        with open(output_html_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
 
-            with open(output_html_path, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-
-            logging.info(f"Converted: {input_path} -> {output_html_path}")
-            return True, mode
-        except Exception as e:
-            logging.error(f"Error processing {input_path}: {e}")
-            return False, mode
-    elif copy_non_md:
-        should_skip_file, mode = should_skip(input_path, output_path, mode)
-        if should_skip_file: return True, mode
-
-        try:
-            shutil.copy2(input_path, output_path)
-            logging.info(f"Copied: {input_path} -> {output_path}")
-            return True, mode
-        except Exception as e:
-            logging.error(f"Error copying {input_path}: {e}")
-            return False, mode
-    else:
-        logging.info(f"Skipped non-markdown file: {input_path}")
-        return True, mode
+        logging.info(f"Converted: {input_path} -> {output_html_path}")
+        return True
+    except Exception as e:
+        logging.error(f"Error processing {input_path}: {e}")
+        return False
 
 
-def process_directory(input_dir: Path, output_dir: Path, copy_non_md=True, mode='interactive', template=None):
-    input_path = input_dir.resolve()
+def process_directory(files: dict[str, list[PurePath]], output_dir: Path, copy_non_md=True, mode='interactive'):
     output_path = output_dir.resolve()
 
     success = True
     file_success_count = 0
     file_failed_count = 0
 
-    for item in input_path.rglob('*'):
-        if item.is_file():
-            # Calculate the relative path from input_dir to the file
-            rel_path = item.relative_to(input_path)
-            # Construct the output file path
-            out_file = output_path / rel_path
+    for md_file in files['md_files']:
+        file_success, mode = process_md_file(md_file, output_path / md_file)
+        if file_success:
+            file_success_count += 1
+        else:
+            file_failed_count += 1
+            success = False
 
-            logging.debug(f"Found file: {rel_path}")
-
-            file_success, mode = process_file(item, out_file, copy_non_md, mode, template)
-            if file_success:
-                file_success_count += 1
-            else:
-                file_failed_count += 1
-                success = False
+    for other_file in files['other_files']:
+        file_success, mode = process_other_files(other_file, output_path / other_file, copy_non_md, mode)
+        if file_success:
+            file_success_count += 1
+        else:
+            file_failed_count += 1
+            success = False
 
     logging.info(f"Directory processing complete.")
     logging.info(f"Processed {file_success_count} files.")
@@ -250,6 +257,21 @@ def process_directory(input_dir: Path, output_dir: Path, copy_non_md=True, mode=
         logging.info(f"{file_failed_count} files failed to process.")
     return success
 
+
+def inventory_files(input_dir: Path) -> dict[str, list[PurePath]]:
+    md_files = []
+    jinja_files = []
+    other_files = []
+    for item in input_dir.rglob('*'):
+        if item.is_file():
+            rel_path = item.relative_to(input_dir)
+            if item.suffix.lower() in ['.md', '.markdown']:
+                md_files.append(rel_path)
+            elif item.suffix.lower() == '.jinja':
+                jinja_files.append(rel_path)
+            else:
+                other_files.append(rel_path)
+    return {'md_files': md_files, 'jinja_files': jinja_files, 'other_files': other_files}
 
 def validate_paths(input_path, output_path):
     # Check if input directory exists
@@ -325,7 +347,8 @@ def main():
     validate_paths(input_path, output_path)
     logging.debug(f"Arguments validated. Starting processing.")
     logging.debug(f"Input: {input_path}, Output: {output_path}, Copy files: {copy_files}, Mode: {mode}, Template: {template_path}")
-    process_directory(input_path, output_path, copy_files, mode, template_path)
+    files = inventory_files(input_path)
+    process_directory(files, output_path, copy_files, mode, template_path)
 
 
 if __name__ == "__main__":
