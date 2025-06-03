@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""
-Markdown to HTML converter
-
-This script converts Markdown files to HTML files. It can handle single files,
-multiple files, or directories. When processing directories, it maintains the
-directory structure in the output.
-"""
 
 import argparse
 import os
