@@ -41,6 +41,8 @@ def main():
     for dir in files['directories']:
         os.makedirs(output_path / dir, exist_ok=True)
 
+    loaded_templates = load_templates(files['jinja_files'])
+
     # process_directory(files, input_path, output_path, template_path, copy_files, mode)
 
     # output_path = output_dir.resolve()
@@ -301,11 +303,22 @@ DEFAULT_TEMPLATE = """<!DOCTYPE html>
 </html>
 """
 
-# TODO We should look in the current directory for a `.jinja` file and use that as the template
-#   If none exists, look in the parent folder. Repeat till we find one.
-#   User should be able to specify a template in their yaml to override this behavior.
-#   Only use the `DEFAULT_TEMPLATE` if all the above fails
-#   Remove specifying template in args
+def load_templates(templates_list: list[PurePath]) -> dict[str, jinja2.Template]:
+    templates_dict = {}
+    for template_path in templates_list:
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+            templates_dict[str(template_path)] = jinja2.Template(template_content)
+            logging.debug(f"Loaded template from {template_path}")
+        except Exception as e:
+            logging.error(f"Error loading template from {template_path}: {e}")
+
+    templates_dict['DEFAULT'] = jinja2.Template(DEFAULT_TEMPLATE)
+    logging.debug("Added default template to templates dictionary")
+
+    return templates_dict
+
 def load_template(template_path=None):
     if template_path and os.path.exists(template_path):
         try:
