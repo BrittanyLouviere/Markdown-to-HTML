@@ -71,26 +71,6 @@ def main():
     if file_failed_count > 0:
         logging.info(f"{file_failed_count} files failed to process.")
 
-    # process_directory(files, input_path, output_path, template_path, copy_files, mode)
-
-    # output_path = output_dir.resolve()
-
-    file_success_count = 0
-    file_failed_count = 0
-
-    for md_file in files['md_files']:
-        file_success = process_md_file(md_file, input_path, output_path, template_path)
-        if file_success:
-            file_success_count += 1
-        else:
-            file_failed_count += 1
-
-    for other_file in files['other_files']:
-        file_success, mode = process_other_files(other_file, input_path, output_path, copy_files, mode)
-        if file_success:
-            file_success_count += 1
-        else:
-            file_failed_count += 1
 
     logging.info(f"Directory processing complete.")
     logging.info(f"Processed {file_success_count} files.")
