@@ -40,7 +40,32 @@ def main():
     files = inventory_files(input_path)
     for dir in files['directories']:
         os.makedirs(output_path / dir, exist_ok=True)
-    process_directory(files, input_path, output_path, template_path, copy_files, mode)
+
+    # process_directory(files, input_path, output_path, template_path, copy_files, mode)
+
+    # output_path = output_dir.resolve()
+
+    file_success_count = 0
+    file_failed_count = 0
+
+    for md_file in files['md_files']:
+        file_success = process_md_file(md_file, input_path, output_path, template_path)
+        if file_success:
+            file_success_count += 1
+        else:
+            file_failed_count += 1
+
+    for other_file in files['other_files']:
+        file_success, mode = process_other_files(other_file, input_path, output_path, copy_files, mode)
+        if file_success:
+            file_success_count += 1
+        else:
+            file_failed_count += 1
+
+    logging.info(f"Directory processing complete.")
+    logging.info(f"Processed {file_success_count} files.")
+    if file_failed_count > 0:
+        logging.info(f"{file_failed_count} files failed to process.")
 
 
 def setup_argument_parser():
@@ -120,36 +145,6 @@ def inventory_files(input_dir: Path) -> dict[str, list[PurePath]]:
         elif item.is_dir():
             directories.append(item.relative_to(input_dir))
     return {'md_files': md_files, 'jinja_files': jinja_files, 'other_files': other_files, 'directories': directories}
-
-
-def process_directory(files: dict[str, list[PurePath]], input_path: Path, output_dir: Path, template: Path, copy_non_md=True, mode='interactive'):
-    output_path = output_dir.resolve()
-
-    success = True
-    file_success_count = 0
-    file_failed_count = 0
-
-    for md_file in files['md_files']:
-        file_success = process_md_file(md_file, input_path, output_path, template)
-        if file_success:
-            file_success_count += 1
-        else:
-            file_failed_count += 1
-            success = False
-
-    for other_file in files['other_files']:
-        file_success, mode = process_other_files(other_file, input_path, output_path, copy_non_md, mode)
-        if file_success:
-            file_success_count += 1
-        else:
-            file_failed_count += 1
-            success = False
-
-    logging.info(f"Directory processing complete.")
-    logging.info(f"Processed {file_success_count} files.")
-    if file_failed_count > 0:
-        logging.info(f"{file_failed_count} files failed to process.")
-    return success
 
 
 def process_md_file(input_file: PurePath, input_path: Path, output_file: Path, template: Path = None) -> bool:
