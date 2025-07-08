@@ -42,6 +42,8 @@ def main():
         os.makedirs(output_path / dir, exist_ok=True)
 
     loaded_templates = load_templates(files['jinja_files'])
+    test_file = files['md_files'][0]
+    test_template = select_template(test_file, loaded_templates.keys(), None, input_path)
 
     # process_directory(files, input_path, output_path, template_path, copy_files, mode)
 
@@ -303,6 +305,7 @@ DEFAULT_TEMPLATE = """<!DOCTYPE html>
 </html>
 """
 
+
 def load_templates(templates_list: list[PurePath]) -> dict[str, jinja2.Template]:
     templates_dict = {}
     for template_path in templates_list:
@@ -319,6 +322,45 @@ def load_templates(templates_list: list[PurePath]) -> dict[str, jinja2.Template]
 
     return templates_dict
 
+
+def select_template(input_file_path: PurePath, templates: list[str], frontmatter, input_dir: Path) -> str:
+    # 1. Check if a template file is specified in frontmatter
+    if frontmatter and 'template' in frontmatter:
+        template_path = frontmatter['template']
+        # Check if the specified template exists in our template list
+        for t in templates:
+            if template_path in t:
+                logging.debug(f"Using template specified in frontmatter: {t}")
+                return t
+
+    # 2. Check if a .jinja file exists with the same name as the current file
+    file_name = input_file_path.stem
+    file_dir = input_file_path.parent
+
+    for t in templates:
+        template_path = Path(t)
+        if template_path.stem == file_name and template_path.parent == file_dir:
+            logging.debug(f"Using template with same name as file: {t}")
+            return t
+
+    # 3. Check parent directories recursively until we hit the input directory
+    current_dir = file_dir
+    while current_dir.name and (input_dir is None or current_dir.is_relative_to(input_dir)):
+        dir_name = current_dir.name
+        for t in templates:
+            template_path = Path(t)
+            if template_path.stem == dir_name:
+                logging.debug(f"Using template with same name as directory: {t}")
+                return t
+        # Move up to parent directory
+        current_dir = current_dir.parent
+
+    # 4. If all else fails, use the DEFAULT_TEMPLATE
+    logging.debug("No suitable template found, using DEFAULT template")
+    return 'DEFAULT'
+
+
+# TODO remove ability to specify a template in args
 def load_template(template_path=None):
     if template_path and os.path.exists(template_path):
         try:
