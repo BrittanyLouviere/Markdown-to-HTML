@@ -8,7 +8,6 @@ import re
 from pathlib import Path, PurePath
 import logging
 import os.path
-from typing import Any
 
 try:
     import markdown
@@ -35,41 +34,65 @@ def main():
     template_path = args.template
 
     validate_paths(input_path, output_path)
-    logging.debug(f"Arguments validated. Starting processing.")
     logging.debug(f"Input: {input_path}, Output: {output_path}, Copy files: {copy_files}, Mode: {mode}, Template: {template_path}")
+    logging.debug(f"Arguments validated. Inventorying files.")
     files = inventory_files(input_path)
-    for dir in files['directories']:
-        os.makedirs(output_path / dir, exist_ok=True)
-
+    logging.debug(f"File inventory complete. Creating directories.")
+    create_output_dirs(files['directories'], output_path)
+    logging.debug("Directories created. Loading templates.")
     loaded_templates = load_templates(files['jinja_files'])
-    test_file = files['md_files'][0]
-    test_template = select_template(test_file, loaded_templates.keys(), None, input_path)
-
-    # process_directory(files, input_path, output_path, template_path, copy_files, mode)
-
-    # output_path = output_dir.resolve()
+    logging.debug("Templates loaded. Processing markdown files.")
 
     file_success_count = 0
-    file_failed_count = 0
+    failed_files = []
 
     for md_file in files['md_files']:
-        file_success = process_md_file(md_file, input_path, output_path, template_path)
-        if file_success:
+        file_output_path = Path(output_path) / md_file.relative_to(input_path).with_suffix('.html')
+
+        try:
+            with open(md_file, 'r', encoding='utf-8') as f:
+                md_content = f.read()
+
+            frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
+            template_path = select_template(md_file, list(loaded_templates.keys()), frontmatter, input_path)
+            template = load_template(template_path)
+            html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template)
+
+            with open(file_output_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+
+            logging.debug(f"Converted: {md_file} -> {file_output_path}")
             file_success_count += 1
-        else:
-            file_failed_count += 1
+        except Exception as e:
+            logging.error(f"Error processing {md_file}: {e}")
+            failed_files.append(md_file)
+
+    logging.debug("Finished processing markdown files. Processing other files.")
 
     for other_file in files['other_files']:
-        file_success, mode = process_other_files(other_file, input_path, output_path, copy_files, mode)
-        if file_success:
-            file_success_count += 1
-        else:
-            file_failed_count += 1
+        if copy_files:
+            should_skip_file, mode = should_skip(other_file, output_path, mode)
+            if should_skip_file:
+                continue
 
-    logging.info(f"Directory processing complete.")
+            output_file_path = Path(output_path) / other_file.relative_to(input_path)
+            try:
+                shutil.copy2(other_file, output_path)
+                logging.debug(f"Copied: {other_file} -> {output_path}")
+                file_success_count += 1
+            except Exception as e:
+                logging.error(f"Error copying {other_file}: {e}")
+                failed_files.append(other_file)
+        else:
+            logging.debug(f"Skipped non-markdown file: {other_file}")
+            file_success_count += 1
+
+    logging.debug("Finished processing other files.")
     logging.info(f"Processed {file_success_count} files.")
-    if file_failed_count > 0:
-        logging.info(f"{file_failed_count} files failed to process.")
+    if len(failed_files) > 0:
+        logging.info(f"{len(failed_files)} file(s) failed to process.")
+        for failed_file in failed_files:
+            logging.info(f"\t{failed_file}")
 
 
 def setup_argument_parser():
@@ -151,118 +174,11 @@ def inventory_files(input_dir: Path) -> dict[str, list[PurePath]]:
     return {'md_files': md_files, 'jinja_files': jinja_files, 'other_files': other_files, 'directories': directories}
 
 
-def process_md_file(input_file: PurePath, input_path: Path, output_file: Path, template: Path = None) -> bool:
-    output_path = Path(output_file) / input_file.relative_to(input_path).with_suffix('.html')
-
-    try:
-        with open(input_file, 'r', encoding='utf-8') as f:
-            md_content = f.read()
-
-        html_content = convert_md_to_html(md_content, template)
-
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-
-        logging.info(f"Converted: {input_file} -> {output_path}")
-        return True
-    except Exception as e:
-        logging.error(f"Error processing {input_file}: {e}")
-        return False
+def create_output_dirs(directories: list[PurePath], output_path: PurePath):
+    for dir in directories:
+        os.makedirs(output_path / dir, exist_ok=True)
 
 
-def convert_md_to_html(md_content, template_path=None):
-    logging.debug("Starting markdown to HTML conversion")
-
-    # Extract YAML frontmatter if present
-    frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
-
-    # Convert markdown to HTML
-    html_body = markdown.markdown(
-        content_without_frontmatter,
-        extensions=[
-            'markdown.extensions.fenced_code',
-            'markdown.extensions.codehilite',
-            'markdown.extensions.tables',
-            'markdown.extensions.nl2br',
-            'markdown.extensions.sane_lists',
-            'markdown.extensions.footnotes',
-            'mdx_wikilink_plus'
-        ],
-        extension_configs={
-            'mdx_wikilink_plus': {
-                'url_whitespace': ' ',
-                'end_url': '.html',
-            },
-        }
-    )
-    logging.debug("Markdown conversion completed")
-
-    # Prepare template context
-    context = {
-        'content': html_body,
-        'meta_tags': []
-    }
-
-    # If frontmatter was found, add it to the context
-    if frontmatter:
-        logging.debug("Processing frontmatter for template")
-        # Add frontmatter values to context
-        context.update(frontmatter)
-
-        # Create meta tags
-        for key, value in frontmatter.items():
-            # Convert the value to a string and escape any quotes
-            if isinstance(value, list):
-                # Convert lists to comma-separated strings
-                value = ', '.join(str(item) for item in value)
-            elif isinstance(value, dict):
-                # Keep dictionaries as YAML
-                value = yaml.dump(value, default_flow_style=False)
-            str_value = str(value).replace('"', '&quot;')
-            context['meta_tags'].append(f'<meta name="{key}" content="{str_value}">')
-
-        logging.debug(f"Added {len(context['meta_tags'])} meta tags to context")
-
-    # Load template and render HTML
-    template = load_template(template_path)
-    html_content = template.render(**context)
-    logging.debug("Template rendering completed")
-
-    return html_content
-
-
-def extract_yaml_frontmatter(md_content):
-    logging.debug("Checking for YAML frontmatter")
-
-    # Regular expression to match YAML frontmatter
-    # It should be at the start of the file, between two sets of triple dashes
-    frontmatter_pattern = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.DOTALL)
-
-    match = frontmatter_pattern.match(md_content)
-    if match:
-        # Extract the YAML content
-        yaml_content = match.group(1)
-        logging.debug("Found YAML frontmatter")
-
-        try:
-            # Parse the YAML content
-            frontmatter = yaml.safe_load(yaml_content)
-            logging.debug(f"Parsed frontmatter: {frontmatter}")
-
-            # Remove the frontmatter from the markdown content
-            content_without_frontmatter = md_content[match.end():]
-            return frontmatter, content_without_frontmatter
-        except yaml.YAMLError as e:
-            # If YAML parsing fails, assume it's not valid frontmatter
-            logging.warning(f"Failed to parse YAML frontmatter: {e}")
-            return None, md_content
-    else:
-        # No frontmatter found
-        logging.debug("No YAML frontmatter found")
-        return None, md_content
-
-
-# Default HTML template
 DEFAULT_TEMPLATE = """<!DOCTYPE html>
 <html>
 <head>
@@ -295,6 +211,37 @@ def load_templates(templates_list: list[PurePath]) -> dict[str, jinja2.Template]
     logging.debug("Added default template to templates dictionary")
 
     return templates_dict
+
+
+def extract_yaml_frontmatter(md_content):
+    logging.debug("Checking for YAML frontmatter")
+
+    # Regular expression to match YAML frontmatter
+    # It should be at the start of the file, between two sets of triple dashes
+    frontmatter_pattern = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.DOTALL)
+
+    match = frontmatter_pattern.match(md_content)
+    if match:
+        # Extract the YAML content
+        yaml_content = match.group(1)
+        logging.debug("Found YAML frontmatter")
+
+        try:
+            # Parse the YAML content
+            frontmatter = yaml.safe_load(yaml_content)
+            logging.debug(f"Parsed frontmatter: {frontmatter}")
+
+            # Remove the frontmatter from the markdown content
+            content_without_frontmatter = md_content[match.end():]
+            return frontmatter, content_without_frontmatter
+        except yaml.YAMLError as e:
+            # If YAML parsing fails, assume it's not valid frontmatter
+            logging.warning(f"Failed to parse YAML frontmatter: {e}")
+            return None, md_content
+    else:
+        # No frontmatter found
+        logging.debug("No YAML frontmatter found")
+        return None, md_content
 
 
 def select_template(input_file_path: PurePath, templates: list[str], frontmatter, input_dir: Path) -> str:
@@ -351,26 +298,60 @@ def load_template(template_path=None):
     return jinja2.Template(DEFAULT_TEMPLATE)
 
 
-def process_other_files(input_file: PurePath, input_path: Path, output_file: Path,
-    copy_non_md: object = True, mode: object = 'interactive') -> tuple[bool, Any] | tuple[bool, str]:
+def convert_md_to_html(md_content, frontmatter, template):
+    logging.debug("Starting markdown to HTML conversion")
 
-    logging.debug(f"Processing file: {input_file} -> {output_file}")
+    # Convert markdown to HTML
+    html_body = markdown.markdown(
+        md_content,
+        extensions=[
+            'markdown.extensions.fenced_code',
+            'markdown.extensions.codehilite',
+            'markdown.extensions.tables',
+            'markdown.extensions.nl2br',
+            'markdown.extensions.sane_lists',
+            'markdown.extensions.footnotes',
+            'mdx_wikilink_plus'
+        ],
+        extension_configs={
+            'mdx_wikilink_plus': {
+                'url_whitespace': ' ',
+                'end_url': '.html',
+            },
+        }
+    )
+    logging.debug("Markdown conversion completed")
 
-    if copy_non_md:
-        should_skip_file, mode = should_skip(input_file, output_file, mode)
-        if should_skip_file: return True, mode
+    # Prepare template context
+    context = {
+        'content': html_body,
+        'meta_tags': []
+    }
 
-        output_path = Path(output_file) / input_file.relative_to(input_path)
-        try:
-            shutil.copy2(input_file, output_path)
-            logging.info(f"Copied: {input_file} -> {output_file}")
-            return True, mode
-        except Exception as e:
-            logging.error(f"Error copying {input_file}: {e}")
-            return False, mode
-    else:
-        logging.info(f"Skipped non-markdown file: {input_file}")
-        return True, mode
+    # If frontmatter was found, add it to the context
+    if frontmatter:
+        logging.debug("Processing frontmatter for template")
+        # Add frontmatter values to context
+        context.update(frontmatter)
+
+        # Create meta tags
+        for key, value in frontmatter.items():
+            # Convert the value to a string and escape any quotes
+            if isinstance(value, list):
+                # Convert lists to comma-separated strings
+                value = ', '.join(str(item) for item in value)
+            elif isinstance(value, dict):
+                # Keep dictionaries as YAML
+                value = yaml.dump(value, default_flow_style=False)
+            str_value = str(value).replace('"', '&quot;')
+            context['meta_tags'].append(f'<meta name="{key}" content="{str_value}">')
+
+        logging.debug(f"Added {len(context['meta_tags'])} meta tags to context")
+
+    html_content = template.render(**context)
+    logging.debug("Template rendering completed")
+
+    return html_content
 
 
 def should_skip(input_path: Path, output_html_path: Path, mode):
