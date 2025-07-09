@@ -31,10 +31,9 @@ def main():
     copy_files = not args.no_copy
     input_path = Path(args.input)
     output_path = Path(args.output)
-    template_path = args.template
 
     validate_paths(input_path, output_path)
-    logging.debug(f"Input: {input_path}, Output: {output_path}, Copy files: {copy_files}, Mode: {mode}, Template: {template_path}")
+    logging.debug(f"Input: {input_path}, Output: {output_path}, Copy files: {copy_files}, Mode: {mode}")
     logging.debug(f"Arguments validated. Inventorying files.")
     files = inventory_files(input_path)
     logging.debug(f"File inventory complete. Creating directories.")
@@ -77,8 +76,8 @@ def main():
 
             output_file_path = Path(output_path) / other_file.relative_to(input_path)
             try:
-                shutil.copy2(other_file, output_path)
-                logging.debug(f"Copied: {other_file} -> {output_path}")
+                shutil.copy2(other_file, output_file_path)
+                logging.debug(f"Copied: {other_file} -> {output_file_path}")
                 file_success_count += 1
             except Exception as e:
                 logging.error(f"Error copying {other_file}: {e}")
@@ -99,7 +98,6 @@ def setup_argument_parser():
     parser = argparse.ArgumentParser(description='Convert Markdown files to HTML')
     parser.add_argument('input', help='Input markdown file(s) or directory')
     parser.add_argument('output', help='Output directory')
-    parser.add_argument('-t', '--template', help='Path to a Jinja2 HTML template file')
     parser.add_argument('--no-copy', action='store_true',
                         help='Do not copy non-markdown files to the output directory')
 
@@ -175,8 +173,8 @@ def inventory_files(input_dir: Path) -> dict[str, list[PurePath]]:
 
 
 def create_output_dirs(directories: list[PurePath], output_path: PurePath):
-    for dir in directories:
-        os.makedirs(output_path / dir, exist_ok=True)
+    for directory in directories:
+        os.makedirs(output_path / directory, exist_ok=True)
 
 
 DEFAULT_TEMPLATE = """<!DOCTYPE html>
@@ -281,7 +279,6 @@ def select_template(input_file_path: PurePath, templates: list[str], frontmatter
     return 'DEFAULT'
 
 
-# TODO remove ability to specify a template in args
 def load_template(template_path=None):
     if template_path and os.path.exists(template_path):
         try:
@@ -354,7 +351,7 @@ def convert_md_to_html(md_content, frontmatter, template):
     return html_content
 
 
-def should_skip(input_path: Path, output_html_path: Path, mode):
+def should_skip(input_path: PurePath, output_html_path: PurePath, mode):
     if input_path.suffix.lower() == '.jinja':
         return True, mode
     if output_html_path.exists():

@@ -36,7 +36,6 @@ Note: The output directory cannot be the same as or inside the input directory
 
 ### Options
 
-- `-t, --template`: Specify a Jinja2 HTML template file to use for rendering
 - `--no-copy`: Do not copy non-markdown files to the output directory
 
 #### Skip vs Overwrite Existing Files
@@ -97,11 +96,6 @@ Note: The output directory cannot be the same as or inside the input directory
    python md2html.py input_directory/ output_directory/ --debug
    ```
 
-7. Using a custom HTML template:
-   ```
-   python md2html.py input_directory/ output_directory/ -t my_template.html
-   ```
-
 ## Jinja2 Templating
 
 The script uses Jinja2 templating to generate HTML output. By default, a simple HTML template is used that includes:
@@ -109,7 +103,7 @@ The script uses Jinja2 templating to generate HTML output. By default, a simple 
 - Meta tags for YAML frontmatter
 - The converted markdown content
 
-You can provide your own template using the `-t` or `--template` option. Your template should be a valid Jinja2 template and can access the following variables:
+Your templates should be valid Jinja2 templates and can access the following variables:
 
 - `content`: The HTML content converted from markdown
 - `meta_tags`: A list of HTML meta tags generated from the YAML frontmatter
