@@ -1,7 +1,4 @@
 import pytest
-import os
-import tempfile
-import shutil
 from pathlib import Path
 import jinja2
 

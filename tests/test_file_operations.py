@@ -3,7 +3,7 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 
 # Import the functions to test
 import sys
