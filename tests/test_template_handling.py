@@ -3,7 +3,6 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import patch, mock_open
 
 # Import the functions to test
 import sys
@@ -104,48 +103,41 @@ class TestSelectTemplate:
 
         assert template == "/path/to/templates/custom_template.jinja"
 
-    def test_same_name_template_selection(self, setup_template_paths, monkeypatch):
+    def test_same_name_template_selection(self):
         """Test that a template with the same name as the file is selected."""
-        # Create a simple test case where the file name matches a template name
-        templates = [
-            "/path/to/templates/custom_template.jinja",
-            "/path/to/templates/file_template.jinja",  # This should match
-            "/path/to/templates/dir_template.jinja",
-            "DEFAULT"
-        ]
-
-        # Create a custom version of select_template that only checks the file name
-        def custom_select_template(input_file_path, templates, frontmatter, input_dir):
-            # Skip frontmatter check (step 1)
-
-            # Check if a template exists with the same name as the current file (step 2)
-            # But ignore the parent directory check
-            file_name = input_file_path.stem
-            for t in templates:
-                template_path = Path(t)
-                if template_path.stem == file_name:
-                    return t
-
-            # Skip directory check (step 3)
-
-            # Fallback to DEFAULT (step 4)
-            return "DEFAULT"
-
-        # Replace the select_template function with our custom version
-        monkeypatch.setattr("tests.test_template_handling.select_template", custom_select_template)
-
-        # Create a temporary directory for the test
+        # Create a temporary directory structure for the test
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Create a test file with a name that matches a template
-            test_file = Path(temp_dir) / "file_template.md"
-            with open(test_file, "w") as f:
-                f.write("Test content")
+            # Create a directory for our files
+            file_dir = Path(temp_dir) / "files"
+            file_dir.mkdir()
+
+            # Create a template with the same name as our test file in the same directory
+            template_path = file_dir / "test_file.jinja"
+            with open(template_path, "w") as f:
+                f.write("Template content")
+
+            # Create a test markdown file
+            md_file_path = file_dir / "test_file.md"
+            with open(md_file_path, "w") as f:
+                f.write("# Test Content")
+
+            # Create another template to ensure we're selecting the right one
+            other_template_path = file_dir / "other_template.jinja"
+            with open(other_template_path, "w") as f:
+                f.write("Other template content")
+
+            # List of templates to pass to select_template
+            templates = [
+                str(template_path),
+                str(other_template_path),
+                "DEFAULT"
+            ]
 
             # Call select_template with the test file
-            template = select_template(test_file, templates, None, Path(temp_dir))
+            template = select_template(md_file_path, templates, None, Path(temp_dir))
 
-            # The template with the matching name should be selected
-            assert template == "/path/to/templates/file_template.jinja"
+            # The template with the same name as the file should be selected
+            assert template == str(template_path)
 
     def test_directory_based_template_selection(self, setup_template_paths):
         """Test that a template with the same name as the directory is selected."""
