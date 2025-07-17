@@ -162,11 +162,11 @@ def inventory_files(input_dir: Path) -> dict[str, list[PurePath]]:
     for item in input_dir.rglob('*'):
         if item.is_file():
             if item.suffix.lower() in ['.md', '.markdown']:
-                md_files.append(input_dir / item)
+                md_files.append(item)
             elif item.suffix.lower() == '.jinja':
-                jinja_files.append(input_dir / item)
+                jinja_files.append(item)
             else:
-                other_files.append(input_dir / item)
+                other_files.append(item)
         elif item.is_dir():
             directories.append(item.relative_to(input_dir))
     return {'md_files': md_files, 'jinja_files': jinja_files, 'other_files': other_files, 'directories': directories}
@@ -308,7 +308,7 @@ def convert_md_to_html(md_content, frontmatter, template):
             'markdown.extensions.nl2br',
             'markdown.extensions.sane_lists',
             'markdown.extensions.footnotes',
-            'mdx_wikilink_plus'
+            # 'mdx_wikilink_plus'
         ],
         extension_configs={
             'mdx_wikilink_plus': {
