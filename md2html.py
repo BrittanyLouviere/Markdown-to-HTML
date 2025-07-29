@@ -43,6 +43,12 @@ def main():
     output_path = Path(args.output)
 
     validate_paths(input_path, output_path)
+
+    # Check if output directory exists and has content
+    if not check_output_directory(output_path, args.clean_output):
+        logging.error("Aborting due to output directory issues")
+        return
+
     logging.debug(f"Input: {input_path}, Output: {output_path}, Copy files: {copy_files}, Mode: {mode}")
     logging.debug(f"Arguments validated. Inventorying files.")
 
@@ -115,6 +121,8 @@ def setup_argument_parser():
     parser.add_argument('output', help='Output directory')
     parser.add_argument('--no-copy', action='store_true',
                         help='Do not copy non-markdown files to the output directory')
+    parser.add_argument('--clean-output', choices=['yes', 'no', 'ask'], default='ask',
+                        help='Whether to clean the output directory if it exists and has content. Default is "ask".')
 
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument('-s', '--skip', action='store_true',
@@ -169,6 +177,57 @@ def validate_paths(input_path, output_path):
         raise ValueError(error_msg)
 
 
+def check_output_directory(output_path, clean_option):
+    """
+    Check if the output directory exists and has content.
+    If it does, ask the user if they want to delete everything in it (unless specified by clean_option).
+
+    Args:
+        output_path: Path object for the output directory
+        clean_option: 'yes', 'no', or 'ask'
+
+    Returns:
+        True if processing should continue, False if it should stop
+    """
+    # Check if output directory exists
+    if not output_path.exists():
+        return True
+
+    # Check if output directory has content
+    has_content = False
+    try:
+        # Check if directory is empty
+        has_content = any(output_path.iterdir())
+    except PermissionError:
+        logging.error(f"Permission denied when checking contents of {output_path}")
+        return False
+
+    if not has_content:
+        return True
+
+    # Directory exists and has content
+    if clean_option == 'ask':
+        response = input(f"Output directory {output_path} already has content. Delete everything in it? (y/N): ")
+        clean_option = 'yes' if response.lower() == 'y' else 'no'
+
+    if clean_option == 'yes':
+        logging.info(f"Cleaning output directory {output_path}")
+        try:
+            # Remove all contents of the directory
+            for item in output_path.iterdir():
+                if item.is_file():
+                    item.unlink()
+                elif item.is_dir():
+                    shutil.rmtree(item)
+            return True
+        except Exception as e:
+            logging.error(f"Error cleaning output directory: {e}")
+            return False
+    elif clean_option == 'no':
+        logging.info(f"Output directory {output_path} has content but will not be cleaned")
+        return True
+
+
 def inventory_files(input_dir: Path, output_dir: Path) -> (list[MdFile], list[PurePath], list[PurePath], list[PurePath]):
     md_files = []
     jinja_files = []
@@ -193,6 +252,10 @@ def inventory_files(input_dir: Path, output_dir: Path) -> (list[MdFile], list[Pu
 
 
 def create_output_dirs(directories: list[PurePath], output_path: PurePath):
+    # Create the output directory if it doesn't exist
+    os.makedirs(output_path, exist_ok=True)
+
+    # Create subdirectories
     for directory in directories:
         os.makedirs(output_path / directory, exist_ok=True)
 
