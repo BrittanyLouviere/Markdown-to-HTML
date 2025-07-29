@@ -62,7 +62,7 @@ def main():
     logging.debug(f"File inventory complete. Creating directories.")
     create_output_dirs(directories, output_path)
     logging.debug("Directories created. Loading templates.")
-    loaded_templates = load_templates(jinja_files)
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath=str(input_path)))
     logging.debug("Templates loaded. Processing markdown files.")
 
     file_success_count = 0
@@ -74,8 +74,8 @@ def main():
                 md_content = f.read()
 
             frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
-            template_path = select_template(md_file.input_path, list(loaded_templates.keys()), frontmatter, input_path)
-            template = load_template(template_path)
+            template_path = select_template(md_file.input_path, jinja_files, frontmatter, input_path)
+            template = env.get_template(str(template_path.relative_to(input_path)))
             html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template)
 
             with open(md_file.html_output_path, 'w', encoding='utf-8') as f:
@@ -360,22 +360,6 @@ def select_template(input_file_path: PurePath, templates: list[str], frontmatter
     # 4. If all else fails, use the DEFAULT_TEMPLATE
     logging.debug("No suitable template found, using DEFAULT template")
     return 'DEFAULT'
-
-
-def load_template(template_path=None):
-    if template_path and os.path.exists(template_path):
-        try:
-            with open(template_path, 'r', encoding='utf-8') as f:
-                template_content = f.read()
-            logging.debug(f"Loaded template from {template_path}")
-            return jinja2.Template(template_content)
-        except Exception as e:
-            logging.error(f"Error loading template from {template_path}: {e}")
-            logging.warning("Falling back to default template")
-
-    # Use default template if no template path provided or loading failed
-    logging.debug("Using default template")
-    return jinja2.Template(DEFAULT_TEMPLATE)
 
 
 def convert_md_to_html(md_content, frontmatter, template):
