@@ -23,6 +23,16 @@ except ImportError as import_error:
     sys.exit(1)
 
 
+class MdFile:
+    def __init__(self, input_dir:PurePath, input_path: PurePath, output_path: PurePath):
+        self.input_path = input_path
+        self.file_name = input_path.stem
+        self.output_relative_path = input_path.relative_to(input_dir).with_suffix('.html')
+        self.html_output_path = output_path / self.output_relative_path
+
+md_files: list[MdFile]
+
+
 def main():
     args = setup_argument_parser()
     configure_logging(args)
@@ -35,40 +45,45 @@ def main():
     validate_paths(input_path, output_path)
     logging.debug(f"Input: {input_path}, Output: {output_path}, Copy files: {copy_files}, Mode: {mode}")
     logging.debug(f"Arguments validated. Inventorying files.")
-    files = inventory_files(input_path)
+
+    global md_files
+    (
+        md_files,
+        jinja_files,
+        other_files,
+        directories
+    ) = inventory_files(input_path, output_path)
     logging.debug(f"File inventory complete. Creating directories.")
-    create_output_dirs(files['directories'], output_path)
+    create_output_dirs(directories, output_path)
     logging.debug("Directories created. Loading templates.")
-    loaded_templates = load_templates(files['jinja_files'])
+    loaded_templates = load_templates(jinja_files)
     logging.debug("Templates loaded. Processing markdown files.")
 
     file_success_count = 0
     failed_files = []
 
-    for md_file in files['md_files']:
-        file_output_path = Path(output_path) / md_file.relative_to(input_path).with_suffix('.html')
-
+    for md_file in md_files:
         try:
-            with open(md_file, 'r', encoding='utf-8') as f:
+            with open(md_file.input_path, 'r', encoding='utf-8') as f:
                 md_content = f.read()
 
             frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
-            template_path = select_template(md_file, list(loaded_templates.keys()), frontmatter, input_path)
+            template_path = select_template(md_file.input_path, list(loaded_templates.keys()), frontmatter, input_path)
             template = load_template(template_path)
             html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template)
 
-            with open(file_output_path, 'w', encoding='utf-8') as f:
+            with open(md_file.html_output_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
 
-            logging.debug(f"Converted: {md_file} -> {file_output_path}")
+            logging.debug(f"Converted: {md_file.input_path} -> {md_file.html_output_path}")
             file_success_count += 1
         except Exception as e:
-            logging.error(f"Error processing {md_file}: {e}")
-            failed_files.append(md_file)
+            logging.error(f"Error processing {md_file.input_path}: {e}")
+            failed_files.append(md_file.input_path)
 
     logging.debug("Finished processing markdown files. Processing other files.")
 
-    for other_file in files['other_files']:
+    for other_file in other_files:
         if copy_files:
             should_skip_file, mode = should_skip(other_file, output_path, mode)
             if should_skip_file:
@@ -154,7 +169,7 @@ def validate_paths(input_path, output_path):
         raise ValueError(error_msg)
 
 
-def inventory_files(input_dir: Path) -> dict[str, list[PurePath]]:
+def inventory_files(input_dir: Path, output_dir: Path) -> (list[MdFile], list[PurePath], list[PurePath], list[PurePath]):
     md_files = []
     jinja_files = []
     other_files = []
@@ -162,14 +177,19 @@ def inventory_files(input_dir: Path) -> dict[str, list[PurePath]]:
     for item in input_dir.rglob('*'):
         if item.is_file():
             if item.suffix.lower() in ['.md', '.markdown']:
-                md_files.append(item)
+                md_files.append(MdFile(input_dir, item, output_dir))
             elif item.suffix.lower() == '.jinja':
                 jinja_files.append(item)
             else:
                 other_files.append(item)
         elif item.is_dir():
             directories.append(item.relative_to(input_dir))
-    return {'md_files': md_files, 'jinja_files': jinja_files, 'other_files': other_files, 'directories': directories}
+    return (
+        md_files,
+        jinja_files,
+        other_files,
+        directories
+    )
 
 
 def create_output_dirs(directories: list[PurePath], output_path: PurePath):
