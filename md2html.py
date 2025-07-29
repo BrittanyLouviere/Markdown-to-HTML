@@ -328,7 +328,7 @@ def convert_md_to_html(md_content, frontmatter, template):
             'markdown.extensions.nl2br',
             'markdown.extensions.sane_lists',
             'markdown.extensions.footnotes',
-            # 'mdx_wikilink_plus'
+            'mdx_wikilink_plus'
         ],
         extension_configs={
             'mdx_wikilink_plus': {
