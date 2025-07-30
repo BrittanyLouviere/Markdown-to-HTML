@@ -257,23 +257,6 @@ def create_output_dirs(directories: list[PurePath], output_path: PurePath):
         os.makedirs(output_path / directory, exist_ok=True)
 
 
-DEFAULT_TEMPLATE = """<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title|default('Document') }}</title>
-    {% for meta_tag in meta_tags %}
-    {{ meta_tag }}
-    {% endfor %}
-</head>
-<body>
-{{ content }}
-</body>
-</html>
-"""
-
-
 def extract_yaml_frontmatter(md_content):
     logging.debug("Checking for YAML frontmatter")
 
@@ -305,6 +288,23 @@ def extract_yaml_frontmatter(md_content):
         return None, md_content
 
 
+DEFAULT_TEMPLATE = jinja2.Template("""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title|default('Document') }}</title>
+    {% for meta_tag in meta_tags %}
+    {{ meta_tag }}
+    {% endfor %}
+</head>
+<body>
+{{ content }}
+</body>
+</html>
+""")
+
+
 def get_template_list(input_file_path: PurePath, frontmatter, input_dir: Path) -> list[str]:
     templates_list = []
 
@@ -325,7 +325,7 @@ def get_template_list(input_file_path: PurePath, frontmatter, input_dir: Path) -
         templates_list[i] = templates_list[i].replace(str(input_dir)+"/", '')
 
     # 4. default template
-    templates_list.append(jinja2.Template(DEFAULT_TEMPLATE))
+    templates_list.append(DEFAULT_TEMPLATE)
 
     return templates_list
 
