@@ -55,7 +55,6 @@ def main():
     global md_files
     (
         md_files,
-        jinja_files,
         other_files,
         directories
     ) = inventory_files(input_path, output_path)
@@ -74,8 +73,8 @@ def main():
                 md_content = f.read()
 
             frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
-            template_path = select_template(md_file.input_path, jinja_files, frontmatter, input_path)
-            template = env.get_template(str(template_path.relative_to(input_path)))
+            template_list = get_template_list(md_file.input_path, frontmatter, input_path)
+            template = env.select_template(template_list)
             html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template)
 
             with open(md_file.html_output_path, 'w', encoding='utf-8') as f:
@@ -230,7 +229,6 @@ def check_output_directory(output_path, clean_option):
 
 def inventory_files(input_dir: Path, output_dir: Path) -> (list[MdFile], list[PurePath], list[PurePath], list[PurePath]):
     md_files = []
-    jinja_files = []
     other_files = []
     directories = []
     for item in input_dir.rglob('*'):
@@ -238,14 +236,13 @@ def inventory_files(input_dir: Path, output_dir: Path) -> (list[MdFile], list[Pu
             if item.suffix.lower() in ['.md', '.markdown']:
                 md_files.append(MdFile(input_dir, item, output_dir))
             elif item.suffix.lower() == '.jinja':
-                jinja_files.append(item)
+                pass
             else:
                 other_files.append(item)
         elif item.is_dir():
             directories.append(item.relative_to(input_dir))
     return (
         md_files,
-        jinja_files,
         other_files,
         directories
     )
@@ -275,23 +272,6 @@ DEFAULT_TEMPLATE = """<!DOCTYPE html>
 </body>
 </html>
 """
-
-
-def load_templates(templates_list: list[PurePath]) -> dict[str, jinja2.Template]:
-    templates_dict = {}
-    for template_path in templates_list:
-        try:
-            with open(template_path, 'r', encoding='utf-8') as f:
-                template_content = f.read()
-            templates_dict[str(template_path)] = jinja2.Template(template_content)
-            logging.debug(f"Loaded template from {template_path}")
-        except Exception as e:
-            logging.error(f"Error loading template from {template_path}: {e}")
-
-    templates_dict['DEFAULT'] = jinja2.Template(DEFAULT_TEMPLATE)
-    logging.debug("Added default template to templates dictionary")
-
-    return templates_dict
 
 
 def extract_yaml_frontmatter(md_content):
@@ -325,41 +305,29 @@ def extract_yaml_frontmatter(md_content):
         return None, md_content
 
 
-def select_template(input_file_path: PurePath, templates: list[str], frontmatter, input_dir: Path) -> str:
-    # 1. Check if a template file is specified in frontmatter
+def get_template_list(input_file_path: PurePath, frontmatter, input_dir: Path) -> list[str]:
+    templates_list = []
+
+    # 1. template defined in frontmatter
     if frontmatter and 'template' in frontmatter:
-        template_path = frontmatter['template']
-        # Check if the specified template exists in our template list
-        for t in templates:
-            if template_path in t:
-                logging.debug(f"Using template specified in frontmatter: {t}")
-                return t
+        templates_list.append(frontmatter['template'])
 
-    # 2. Check if a .jinja file exists with the same name as the current file
-    file_name = input_file_path.stem
-    file_dir = input_file_path.parent
+    # 2. template with same name as file in same folder
+    templates_list.append(str(input_file_path.with_suffix('.jinja')))
 
-    for t in templates:
-        template_path = Path(t)
-        if template_path.stem == file_name and template_path.parent == file_dir:
-            logging.debug(f"Using template with same name as file: {t}")
-            return t
-
-    # 3. Check parent directories recursively until we hit the input directory
-    current_dir = file_dir
-    while current_dir.name and (input_dir is None or current_dir.is_relative_to(input_dir)):
-        dir_name = current_dir.name
-        for t in templates:
-            template_path = Path(t)
-            if template_path.stem == dir_name:
-                logging.debug(f"Using template with same name as directory: {t}")
-                return t
-        # Move up to parent directory
+    # 3. recursively check for templates with same name as parent folder
+    current_dir = input_file_path.parent
+    while current_dir != input_dir.parent:
+        templates_list.append(str(current_dir / current_dir.with_suffix('.jinja').name))
         current_dir = current_dir.parent
 
-    # 4. If all else fails, use the DEFAULT_TEMPLATE
-    logging.debug("No suitable template found, using DEFAULT template")
-    return 'DEFAULT'
+    for i in range(len(templates_list)):
+        templates_list[i] = templates_list[i].replace(str(input_dir)+"/", '')
+
+    # 4. default template
+    templates_list.append(jinja2.Template(DEFAULT_TEMPLATE))
+
+    return templates_list
 
 
 def convert_md_to_html(md_content, frontmatter, template):
