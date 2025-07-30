@@ -27,6 +27,7 @@ class MdFile:
     def __init__(self, input_dir:PurePath, input_path: PurePath, output_path: PurePath):
         self.input_path = input_path
         self.file_name = input_path.stem
+        self.input_relative_path = input_path.relative_to(input_dir.parent)
         self.output_relative_path = input_path.relative_to(input_dir).with_suffix('.html')
         self.html_output_path = output_path / self.output_relative_path
 
@@ -73,7 +74,7 @@ def main():
                 md_content = f.read()
 
             frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
-            template_list = get_template_list(md_file.input_path, frontmatter, input_path)
+            template_list = get_template_list(md_file.input_relative_path, frontmatter, input_path)
             template = env.select_template(template_list)
             html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template)
 
@@ -305,7 +306,7 @@ DEFAULT_TEMPLATE = jinja2.Template("""<!DOCTYPE html>
 """)
 
 
-def get_template_list(input_file_path: PurePath, frontmatter, input_dir: Path) -> list[str]:
+def get_template_list(relative_file_path: PurePath, frontmatter, input_dir: Path) -> list[str]:
     templates_list = []
 
     # 1. template defined in frontmatter
@@ -313,16 +314,13 @@ def get_template_list(input_file_path: PurePath, frontmatter, input_dir: Path) -
         templates_list.append(frontmatter['template'])
 
     # 2. template with same name as file in same folder
-    templates_list.append(str(input_file_path.with_suffix('.jinja')))
+    templates_list.append(str(relative_file_path.with_suffix('.jinja')))
 
     # 3. recursively check for templates with same name as parent folder
-    current_dir = input_file_path.parent
-    while current_dir != input_dir.parent:
+    current_dir = relative_file_path.parent
+    while current_dir.name != "":
         templates_list.append(str(current_dir / current_dir.with_suffix('.jinja').name))
         current_dir = current_dir.parent
-
-    for i in range(len(templates_list)):
-        templates_list[i] = templates_list[i].replace(str(input_dir)+"/", '')
 
     # 4. default template
     templates_list.append(DEFAULT_TEMPLATE)
