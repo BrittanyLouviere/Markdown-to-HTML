@@ -26,10 +26,8 @@ except ImportError as import_error:
 class MdFile:
     def __init__(self, input_dir:PurePath, input_path: PurePath, output_path: PurePath):
         self.input_path = input_path
-        self.file_name = input_path.stem
         self.input_relative_path = input_path.relative_to(input_dir.parent)
-        self.output_relative_path = input_path.relative_to(input_dir).with_suffix('.html')
-        self.html_output_path = output_path / self.output_relative_path
+        self.output_path = output_path / input_path.relative_to(input_dir).with_suffix('.html')
 
 md_files: list[MdFile]
 
@@ -78,10 +76,10 @@ def main():
             template = env.select_template(template_list)
             html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template)
 
-            with open(md_file.html_output_path, 'w', encoding='utf-8') as f:
+            with open(md_file.output_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
 
-            logging.debug(f"Converted: {md_file.input_path} -> {md_file.html_output_path}")
+            logging.debug(f"Converted: {md_file.input_path} -> {md_file.output_path}")
             file_success_count += 1
         except Exception as e:
             logging.error(f"Error processing {md_file.input_path}: {e}")
