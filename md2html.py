@@ -312,12 +312,12 @@ def get_template_list(relative_file_path: PurePath, frontmatter, input_dir: Path
         templates_list.append(frontmatter['template'])
 
     # 2. template with same name as file in same folder
-    templates_list.append(str(relative_file_path.with_suffix('.jinja')))
+    templates_list.append(str(relative_file_path.with_suffix('.jinja')).replace(input_dir.name, '', 1))
 
     # 3. recursively check for templates with same name as parent folder
     current_dir = relative_file_path.parent
     while current_dir.name != "":
-        templates_list.append(str(current_dir / current_dir.with_suffix('.jinja').name))
+        templates_list.append(str(current_dir / current_dir.with_suffix('.jinja').name).replace(input_dir.name + "/", '', 1))
         current_dir = current_dir.parent
 
     # 4. default template
