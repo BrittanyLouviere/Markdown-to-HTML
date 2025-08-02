@@ -26,7 +26,7 @@ except ImportError as import_error:
 class MdFile:
     def __init__(self, input_dir:PurePath, input_path: PurePath, output_path: PurePath):
         self.input_path = input_path
-        self.input_relative_path = input_path.relative_to(input_dir.parent)
+        self.input_relative_path = input_path.relative_to(input_dir)
         self.output_path = output_path / input_path.relative_to(input_dir).with_suffix('.html')
 
 md_files: list[MdFile]
@@ -312,15 +312,18 @@ def get_template_list(relative_file_path: PurePath, frontmatter, input_dir: Path
         templates_list.append(frontmatter['template'])
 
     # 2. template with same name as file in same folder
-    templates_list.append(str(relative_file_path.with_suffix('.jinja')).replace(input_dir.name, '', 1))
+    templates_list.append(str(relative_file_path.with_suffix('.jinja')))
 
     # 3. recursively check for templates with same name as parent folder
     current_dir = relative_file_path.parent
     while current_dir.name != "":
-        templates_list.append(str(current_dir / current_dir.with_suffix('.jinja').name).replace(input_dir.name + "/", '', 1))
+        templates_list.append(str(current_dir / current_dir.with_suffix('.jinja').name))
         current_dir = current_dir.parent
 
-    # 4. default template
+    # 4. add root folder template
+    templates_list.append(str(input_dir.name) + '.jinja')
+
+    # 5. default template
     templates_list.append(DEFAULT_TEMPLATE)
 
     return templates_list
