@@ -29,8 +29,6 @@ class MdFile:
         self.input_relative_path = input_path.relative_to(input_dir)
         self.output_path = output_path / input_path.relative_to(input_dir).with_suffix('.html')
 
-md_files: list[MdFile]
-
 
 def main():
     args = setup_argument_parser()
@@ -51,7 +49,6 @@ def main():
     logging.debug(f"Input: {input_path}, Output: {output_path}, Copy files: {copy_files}, Mode: {mode}")
     logging.debug(f"Arguments validated. Inventorying files.")
 
-    global md_files
     (
         md_files,
         other_files,
