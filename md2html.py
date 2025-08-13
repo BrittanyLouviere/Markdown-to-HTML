@@ -96,7 +96,7 @@ def main():
             frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
             template_list = get_template_list(md_file.input_relative_path, frontmatter, input_path)
             template = env.select_template(template_list)
-            html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template, md)
+            html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template, md, str(md_file.input_relative_path.with_suffix('')))
 
             with open(md_file.output_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
@@ -353,7 +353,7 @@ def get_template_list(relative_file_path: PurePath, frontmatter, input_dir: Path
     return templates_list
 
 
-def convert_md_to_html(md_content, frontmatter, template, md):
+def convert_md_to_html(md_content, frontmatter, template, md, page_relative_html_path: str):
     logging.debug("Starting markdown to HTML conversion")
 
     html_body = md.convert(md_content)
@@ -386,6 +386,7 @@ def convert_md_to_html(md_content, frontmatter, template, md):
         logging.debug(f"Added {len(context['meta_tags'])} meta tags to context")
 
     html_content = template.render(**context)
+    html_content = html_content.replace('href="#', f'href="{page_relative_html_path}#')
     logging.debug("Template rendering completed")
 
     return html_content
