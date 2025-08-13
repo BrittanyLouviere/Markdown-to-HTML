@@ -63,6 +63,27 @@ def main():
     file_success_count = 0
     failed_files = []
 
+    md = markdown.Markdown(
+        extensions=[
+            'markdown.extensions.fenced_code',
+            'markdown.extensions.codehilite',
+            'markdown.extensions.tables',
+            'markdown.extensions.nl2br',
+            'markdown.extensions.sane_lists',
+            'markdown.extensions.footnotes',
+            'mdx_wikilink_plus'
+        ],
+        extension_configs={
+            'mdx_wikilink_plus': {
+                'url_whitespace': ' ',
+                'end_url': '.html',
+            },
+            'markdown.extensions.footnotes': {
+                'UNIQUE_IDS': True
+            }
+        }
+    )
+
     for md_file in md_files:
         try:
             with open(md_file.input_path, 'r', encoding='utf-8') as f:
@@ -71,10 +92,12 @@ def main():
             frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
             template_list = get_template_list(md_file.input_relative_path, frontmatter, input_path)
             template = env.select_template(template_list)
-            html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template)
+            html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template, md)
 
             with open(md_file.output_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
+
+            md.reset()
 
             logging.debug(f"Converted: {md_file.input_path} -> {md_file.output_path}")
             file_success_count += 1
@@ -326,28 +349,10 @@ def get_template_list(relative_file_path: PurePath, frontmatter, input_dir: Path
     return templates_list
 
 
-def convert_md_to_html(md_content, frontmatter, template):
+def convert_md_to_html(md_content, frontmatter, template, md):
     logging.debug("Starting markdown to HTML conversion")
 
-    # Convert markdown to HTML
-    html_body = markdown.markdown(
-        md_content,
-        extensions=[
-            'markdown.extensions.fenced_code',
-            'markdown.extensions.codehilite',
-            'markdown.extensions.tables',
-            'markdown.extensions.nl2br',
-            'markdown.extensions.sane_lists',
-            'markdown.extensions.footnotes',
-            'mdx_wikilink_plus'
-        ],
-        extension_configs={
-            'mdx_wikilink_plus': {
-                'url_whitespace': ' ',
-                'end_url': '.html',
-            },
-        }
-    )
+    html_body = md.convert(md_content)
     logging.debug("Markdown conversion completed")
 
     # Prepare template context
