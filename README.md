@@ -8,22 +8,24 @@ A Python script to convert Markdown files to HTML.
 - Handles whole directories at a time
 - Maintains directory structure
 - Option to control whether non-markdown files are copied to the output
+- Option to clean the output directory before processing
 - Jinja2 templating for customizable HTML output
+- Intelligent template selection based on file and directory structure
 - Default template provides simple 1-to-1 translation without extra CSS, headers, footers, or JavaScript
 - Extracts YAML frontmatter from markdown files and converts it to HTML meta tags
 - Supports footnotes and wikilinks in markdown content
+- Supports multiple markdown extensions including fenced code, code highlighting, tables, and more
 
 ## Installation
 
 1. Clone this repository:
    ```
    git clone https://github.com/BrittanyLouviere/Markdown-to-HTML.git
-   cd Markdown-to-HTML
    ```
 
 2. Install the required dependencies:
    ```
-   pip install markdown pyyaml jinja2
+   pip install markdown pyyaml jinja2 mdx_wikilink_plus
    ```
 
 ## Usage
@@ -37,6 +39,7 @@ Note: The output directory cannot be the same as or inside the input directory
 ### Options
 
 - `--no-copy`: Do not copy non-markdown files to the output directory
+- `--clean-output {yes,no,ask}`: Whether to clean the output directory if it exists and has content. Default is "ask".
 
 #### Skip vs Overwrite Existing Files
 
@@ -96,6 +99,18 @@ Note: The output directory cannot be the same as or inside the input directory
    python md2html.py input_directory/ output_directory/ --debug
    ```
 
+7. Cleaning the output directory:
+   ```
+   # Always clean the output directory without asking
+   python md2html.py input_directory/ output_directory/ --clean-output yes
+
+   # Never clean the output directory
+   python md2html.py input_directory/ output_directory/ --clean-output no
+
+   # Ask before cleaning (default)
+   python md2html.py input_directory/ output_directory/ --clean-output ask
+   ```
+
 ## Jinja2 Templating
 
 The script uses Jinja2 templating to generate HTML output. By default, a simple HTML template is used that includes:
@@ -140,6 +155,18 @@ For example, if your markdown file has frontmatter with `title` and `author` fie
 </html>
 ```
 
+### Template Selection
+
+The script uses a prioritized list to select the template for each markdown file:
+
+1. Template specified in the YAML frontmatter using the `template` key
+2. Template with the same name as the markdown file in the same folder (e.g., `document.jinja` for `document.md`)
+3. Template with the same name as the parent folder (recursively checking up the directory tree)
+4. Template with the same name as the root input folder
+5. Default built-in template
+
+Templates should have a `.jinja` extension and be placed in the input directory structure. Note that `.jinja` files are not copied to the output directory.
+
 ## YAML Frontmatter
 
 The script supports YAML frontmatter in markdown files. YAML frontmatter is a block of YAML at the beginning of a markdown file, delimited by triple dashes (`---`). For example:
@@ -162,10 +189,17 @@ This is the content of my document.
 
 When converting a markdown file with YAML frontmatter to HTML, the script:
 1. Extracts the YAML frontmatter from the markdown content
-2. Converts the YAML frontmatter to HTML meta tags
+2. Converts the YAML frontmatter to HTML meta tags which may be included in the template
 3. Ensures the YAML frontmatter is not included in the visible HTML content
 
-The resulting HTML will include meta tags for each key-value pair in the frontmatter:
+The resulting HTML can include meta tags for each key-value pair in the frontmatter by adding them to the template:
+
+```jinja2
+{% for meta_tag in meta_tags %}
+    {{ meta_tag }}
+{% endfor %}
+{{content}}
+```
 
 ```html
 <meta name="title" content="My Document">
@@ -175,3 +209,31 @@ The resulting HTML will include meta tags for each key-value pair in the frontma
 <h1>My Document</h1>
 <p>This is the content of my document.</p>
 ```
+
+## Markdown Extensions
+
+The script uses the Python-Markdown library with the following extensions enabled:
+
+- `fenced_code`: Support for fenced code blocks using triple backticks
+- `codehilite`: Syntax highlighting for code blocks
+- `tables`: Support for tables using pipe syntax
+- `nl2br`: Converts newlines to line breaks
+- `sane_lists`: Better handling of lists
+- `footnotes`: Support for footnotes using `[^1]` syntax
+- `mdx_wikilink_plus`: Support for wiki-style links using `[[Link]]` syntax
+
+### Wiki Links
+
+The `mdx_wikilink_plus` extension allows you to use wiki-style links in your markdown:
+
+```markdown
+[[Page Name]]
+```
+
+These links will be converted to HTML links with spaces preserved in the URL and `.html` appended:
+
+```html
+<a href="Page Name.html">Page Name</a>
+```
+
+This makes it easy to link between pages in your documentation.
