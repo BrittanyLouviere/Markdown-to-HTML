@@ -57,7 +57,11 @@ def main():
     logging.debug(f"File inventory complete. Creating directories.")
     create_output_dirs(directories, output_path)
     logging.debug("Directories created. Loading templates.")
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath=str(input_path)))
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(searchpath=str(input_path)),
+        trim_blocks=True,
+        lstrip_blocks=True
+    )
     logging.debug("Templates loaded. Processing markdown files.")
 
     file_success_count = 0
