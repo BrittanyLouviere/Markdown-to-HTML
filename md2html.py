@@ -57,36 +57,14 @@ def main():
     logging.debug(f"File inventory complete. Creating directories.")
     create_output_dirs(directories, output_path)
     logging.debug("Directories created. Loading templates.")
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(searchpath=str(input_path)),
-        trim_blocks=True,
-        lstrip_blocks=True
-    )
-    logging.debug("Templates loaded. Processing markdown files.")
 
     file_success_count = 0
     failed_files = []
 
-    md = markdown.Markdown(
-        extensions=[
-            'markdown.extensions.fenced_code',
-            'markdown.extensions.codehilite',
-            'markdown.extensions.tables',
-            'markdown.extensions.nl2br',
-            'markdown.extensions.sane_lists',
-            'markdown.extensions.footnotes',
-            'mdx_wikilink_plus'
-        ],
-        extension_configs={
-            'mdx_wikilink_plus': {
-                'url_whitespace': ' ',
-                'end_url': '.html',
-            },
-            'markdown.extensions.footnotes': {
-                'UNIQUE_IDS': True
-            }
-        }
-    )
+    env = initialize_templater_environment(input_path)
+    logging.debug("Templates loaded. Processing markdown files.")
+
+    md = initialize_markdown_environment()
 
     for md_file in md_files:
         try:
@@ -268,6 +246,37 @@ def inventory_files(input_dir: Path, output_dir: Path) -> (list[MdFile], list[Pu
         md_files,
         other_files,
         directories
+    )
+
+
+def initialize_templater_environment(input_path: PurePath):
+    return jinja2.Environment(
+        loader=jinja2.FileSystemLoader(searchpath=str(input_path)),
+        trim_blocks=True,
+        lstrip_blocks=True
+    )
+
+
+def initialize_markdown_environment():
+    return markdown.Markdown(
+        extensions=[
+            'markdown.extensions.fenced_code',
+            'markdown.extensions.codehilite',
+            'markdown.extensions.tables',
+            'markdown.extensions.nl2br',
+            'markdown.extensions.sane_lists',
+            'markdown.extensions.footnotes',
+            'mdx_wikilink_plus'
+        ],
+        extension_configs={
+            'mdx_wikilink_plus': {
+                'url_whitespace': ' ',
+                'end_url': '.html',
+            },
+            'markdown.extensions.footnotes': {
+                'UNIQUE_IDS': True
+            }
+        }
     )
 
 
