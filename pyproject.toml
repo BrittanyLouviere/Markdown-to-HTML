@@ -1,0 +1,12 @@
+[project]
+name = "markdown-to-html"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "jinja2>=3.1.6",
+    "markdown>=3.8.2",
+    "mdx-wikilink-plus>=1.4.1",
+    "pyyaml>=6.0.2",
+]
