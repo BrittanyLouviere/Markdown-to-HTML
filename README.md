@@ -40,6 +40,7 @@ Note: The output directory cannot be the same as or inside the input directory
 
 - `--no-copy`: Do not copy non-markdown files to the output directory
 - `--clean-output {yes,no,ask}`: Whether to clean the output directory if it exists and has content. Default is "ask".
+- `-T, --template-var KEY=VALUE`: Set a custom template variable available in all templates. May be specified multiple times.
 
 #### Skip vs Overwrite Existing Files
 
@@ -237,3 +238,26 @@ These links will be converted to HTML links with spaces preserved in the URL and
 ```
 
 This makes it easy to link between pages in your documentation.
+
+## Custom Template Variables
+
+You can pass custom key-value pairs to the Jinja environment so they are available in all templates:
+
+- Use `-T` or `--template-var` multiple times to set variables.
+- Format is `KEY=VALUE`.
+- Values are treated as strings.
+
+Examples:
+
+```
+python md2html.py input_directory/ output_directory/ -T site_name="My Docs" -T theme=dark
+```
+
+In your Jinja templates, you can reference them directly:
+
+```jinja2
+<title>{{ site_name }}</title>
+<body class="theme-{{ theme }}">
+    {{ content }}
+</body>
+```

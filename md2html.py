@@ -39,6 +39,8 @@ def main():
     input_path = Path(args.input)
     output_path = Path(args.output)
 
+    template_vars = parse_template_vars(args.template_var)
+
     validate_paths(input_path, output_path)
 
     # Check if output directory exists and has content
@@ -61,7 +63,7 @@ def main():
     file_success_count = 0
     failed_files = []
 
-    env = initialize_templater_environment(input_path)
+    env = initialize_templater_environment(input_path, template_vars)
     logging.debug("Templates loaded. Processing markdown files.")
 
     md = initialize_markdown_environment()
@@ -123,6 +125,10 @@ def setup_argument_parser():
                         help='Do not copy non-markdown files to the output directory')
     parser.add_argument('--clean-output', choices=['yes', 'no', 'ask'], default='ask',
                         help='Whether to clean the output directory if it exists and has content. Default is "ask".')
+
+    # Custom template environment variables (repeatable KEY=VALUE)
+    parser.add_argument('-T', '--template-var', action='append', default=[], metavar='KEY=VALUE',
+                        help='Set a custom template variable available in all templates. May be specified multiple times.')
 
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument('-s', '--skip', action='store_true',
@@ -249,12 +255,16 @@ def inventory_files(input_dir: Path, output_dir: Path) -> (list[MdFile], list[Pu
     )
 
 
-def initialize_templater_environment(input_path: PurePath):
-    return jinja2.Environment(
+def initialize_templater_environment(input_path: PurePath, env_globals: dict | None = None):
+    env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(searchpath=str(input_path)),
         trim_blocks=True,
-        lstrip_blocks=True
+        lstrip_blocks=True,
     )
+    if env_globals:
+        # make custom variables available globally in all templates
+        env.globals.update(env_globals)
+    return env
 
 
 def initialize_markdown_environment():
@@ -278,6 +288,25 @@ def initialize_markdown_environment():
             }
         }
     )
+
+
+def parse_template_vars(pairs: list[str] | None) -> dict:
+    """Parse a list of KEY=VALUE strings into a dict. Raises ValueError on invalid entries."""
+    result: dict[str, str] = {}
+    if not pairs:
+        return result
+    for pair in pairs:
+        if '=' not in pair:
+            raise ValueError(f"Invalid --template-var '{pair}'. Expected format KEY=VALUE.")
+        key, value = pair.split('=', 1)
+        key = key.strip()
+        # keep value as-is (string). Users can pass quotes if needed.
+        value = value
+        if not key:
+            raise ValueError(f"Invalid --template-var '{pair}'. Key cannot be empty.")
+        result[key] = value
+    logging.debug(f"Parsed template vars: {result}")
+    return result
 
 
 def create_output_dirs(directories: list[PurePath], output_path: PurePath):
