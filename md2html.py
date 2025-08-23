@@ -27,7 +27,8 @@ class MdFile:
     def __init__(self, input_dir:PurePath, input_path: PurePath, output_path: PurePath):
         self.input_path = input_path
         self.input_relative_path = input_path.relative_to(input_dir)
-        self.output_path = output_path / input_path.relative_to(input_dir).with_suffix('.html')
+        self.output_relative_path = self.input_relative_path.with_suffix('.html')
+        self.output_path = output_path / self.output_relative_path
 
 
 def main():
@@ -60,14 +61,13 @@ def main():
     create_output_dirs(directories, output_path)
     logging.debug("Directories created. Loading templates.")
 
-    file_success_count = 0
-    failed_files = []
-
-    env = initialize_templater_environment(input_path, template_vars)
+    template_env = initialize_templater_environment(input_path, template_vars)
     logging.debug("Templates loaded. Processing markdown files.")
 
-    md = initialize_markdown_environment()
+    md_env = initialize_markdown_environment()
 
+    file_success_count = 0
+    failed_files = []
     for md_file in md_files:
         try:
             with open(md_file.input_path, 'r', encoding='utf-8') as f:
@@ -75,13 +75,13 @@ def main():
 
             frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
             template_list = get_template_list(md_file.input_relative_path, frontmatter, input_path)
-            template = env.select_template(template_list)
-            html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template, md, str(md_file.input_relative_path.with_suffix('')))
+            template = template_env.select_template(template_list)
+            html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template, md_env, str(md_file.input_relative_path.with_suffix('')))
 
             with open(md_file.output_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
 
-            md.reset()
+            md_env.reset()
 
             logging.debug(f"Converted: {md_file.input_path} -> {md_file.output_path}")
             file_success_count += 1
