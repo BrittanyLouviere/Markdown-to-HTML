@@ -25,6 +25,8 @@ except ImportError as import_error:
 
 class MdFile:
     def __init__(self, input_dir:PurePath, input_path: PurePath, output_path: PurePath):
+        self.content = None
+        self.frontmatter = None
         self.input_path = input_path
         self.input_relative_path = input_path.relative_to(input_dir)
         self.output_relative_path = self.input_relative_path.with_suffix('.html')
@@ -59,7 +61,21 @@ def main():
     ) = inventory_files(input_path, output_path)
     logging.debug(f"File inventory complete. Creating directories.")
     create_output_dirs(directories, output_path)
-    logging.debug("Directories created. Loading templates.")
+    logging.debug("Directories created. Parsing Markdown files.")
+
+    failed_files = []
+    for md_file in md_files:
+        try:
+            with open(md_file.input_path, 'r', encoding='utf-8') as f:
+                md_content = f.read()
+            md_file.frontmatter, md_file.content = extract_yaml_frontmatter(md_content)
+        except Exception as e:
+            logging.error(f"Error processing {md_file.input_path}: {e}")
+            failed_files.append(md_file.input_path)
+
+    md_files = [mf for mf in md_files if mf.input_path not in failed_files]
+    template_vars['pages'] = md_files
+    logging.debug("Markdown files parsed. Loading templates.")
 
     template_env = initialize_templater_environment(input_path, template_vars)
     logging.debug("Templates loaded. Processing markdown files.")
@@ -67,16 +83,11 @@ def main():
     md_env = initialize_markdown_environment()
 
     file_success_count = 0
-    failed_files = []
     for md_file in md_files:
         try:
-            with open(md_file.input_path, 'r', encoding='utf-8') as f:
-                md_content = f.read()
-
-            frontmatter, content_without_frontmatter = extract_yaml_frontmatter(md_content)
-            template_list = get_template_list(md_file.input_relative_path, frontmatter, input_path)
+            template_list = get_template_list(md_file, input_path)
             template = template_env.select_template(template_list)
-            html_content = convert_md_to_html(content_without_frontmatter, frontmatter, template, md_env, str(md_file.input_relative_path.with_suffix('')))
+            html_content = convert_md_to_html(md_file, template, md_env, str(md_file.input_relative_path.with_suffix('')))
 
             with open(md_file.output_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
@@ -366,18 +377,18 @@ DEFAULT_TEMPLATE = jinja2.Template("""<!DOCTYPE html>
 """)
 
 
-def get_template_list(relative_file_path: PurePath, frontmatter, input_dir: Path) -> list[str]:
+def get_template_list(md_file: MdFile, input_dir: Path) -> list[str]:
     templates_list = []
 
     # 1. template defined in frontmatter
-    if frontmatter and 'template' in frontmatter:
-        templates_list.append(frontmatter['template'])
+    if md_file.frontmatter and 'template' in md_file.frontmatter:
+        templates_list.append(md_file.frontmatter['template'])
 
     # 2. template with same name as file in same folder
-    templates_list.append(str(relative_file_path.with_suffix('.jinja')))
+    templates_list.append(str(md_file.input_relative_path.with_suffix('.jinja')))
 
     # 3. recursively check for templates with same name as parent folder
-    current_dir = relative_file_path.parent
+    current_dir = md_file.input_relative_path.parent
     while current_dir.name != "":
         templates_list.append(str(current_dir / current_dir.with_suffix('.jinja').name))
         current_dir = current_dir.parent
@@ -391,10 +402,10 @@ def get_template_list(relative_file_path: PurePath, frontmatter, input_dir: Path
     return templates_list
 
 
-def convert_md_to_html(md_content, frontmatter, template, md, page_relative_html_path: str):
+def convert_md_to_html(md_file: MdFile, template, md, page_relative_html_path: str):
     logging.debug("Starting markdown to HTML conversion")
 
-    html_body = md.convert(md_content)
+    html_body = md.convert(md_file.content)
     logging.debug("Markdown conversion completed")
 
     # Prepare template context
@@ -404,13 +415,13 @@ def convert_md_to_html(md_content, frontmatter, template, md, page_relative_html
     }
 
     # If frontmatter was found, add it to the context
-    if frontmatter:
+    if md_file.frontmatter:
         logging.debug("Processing frontmatter for template")
         # Add frontmatter values to context
-        context.update(frontmatter)
+        context.update(md_file.frontmatter)
 
         # Create meta tags
-        for key, value in frontmatter.items():
+        for key, value in md_file.frontmatter.items():
             # Convert the value to a string and escape any quotes
             if isinstance(value, list):
                 # Convert lists to comma-separated strings
